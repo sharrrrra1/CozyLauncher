@@ -1,0 +1,17 @@
+node_modules/
+out/
+release/
+dist/
+*.log
+.DS_Store
+Thumbs.db
+smoke/
+smoke-mods/
+raw_art/
+
+# только готовые скриншоты для README, без рабочих подпапок
+screenshots/*
+!screenshots/*.png
+
+.s.json
+probe.txt
