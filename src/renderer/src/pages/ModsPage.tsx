@@ -6,6 +6,7 @@ import { Icon } from '../components/Icon'
 import { McSprite } from '../components/McSprite'
 import type {
   InstallProgress,
+  Instance,
   InstalledMod,
   ModInstallPlan,
   ModSearchResult,
@@ -21,7 +22,9 @@ interface PendingInstall {
 }
 
 export function ModsPage(): ReactNode {
-  const { selectedVersion, statuses, toast, install, cancelInstall } = useApp()
+  const { selectedVersion, statuses, toast, install, cancelInstall, refreshStatuses } = useApp()
+  const [instances, setInstances] = useState<Instance[]>([])
+  const [targetId, setTargetId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [mods, setMods] = useState<ModSearchResult[]>([])
   const [installedMods, setInstalledMods] = useState<InstalledMod[]>([])
@@ -40,11 +43,25 @@ export function ModsPage(): ReactNode {
   const [updates, setUpdates] = useState<ModUpdate[]>([])
   const [checkingUpdates, setCheckingUpdates] = useState(false)
 
-  const installed = statuses[selectedVersion]?.installed ?? false
+  const targetInstance = instances.find((item) => item.id === targetId)
+  const gameVersion = targetInstance?.versionId ?? selectedVersion
+  const versionStatus = statuses[gameVersion]
+  const installed = versionStatus?.installed ?? false
+  const statusKnown = Boolean(versionStatus)
+
+  useEffect(() => {
+    void api.instances.list().then(setInstances).catch(() => undefined)
+  }, [])
+
+  // An instance may target a game version other than the selected one; make
+  // sure its install status is known before claiming the client is missing.
+  useEffect(() => {
+    if (!versionStatus) void refreshStatuses([gameVersion])
+  }, [gameVersion, versionStatus, refreshStatuses])
 
   const loadInstalled = async (): Promise<void> => {
     try {
-      setInstalledMods(await api.mods.listInstalled(selectedVersion))
+      setInstalledMods(await api.mods.listInstalled(gameVersion, targetId || undefined))
     } catch (error) {
       console.error(error)
     }
@@ -61,13 +78,13 @@ export function ModsPage(): ReactNode {
       unsubscribeLog()
       unsubscribeProgress()
     }
-  }, [selectedVersion])
+  }, [gameVersion, targetId])
 
   const handleSearch = async (event?: React.FormEvent): Promise<void> => {
     if (event) event.preventDefault()
     setLoading(true)
     try {
-      setMods(await api.mods.search(searchQuery, selectedVersion))
+      setMods(await api.mods.search(searchQuery, gameVersion))
     } catch (error) {
       toast('error', 'Ошибка поиска модов', formatError(error))
     } finally {
@@ -77,14 +94,14 @@ export function ModsPage(): ReactNode {
 
   useEffect(() => {
     void handleSearch()
-  }, [selectedVersion])
+  }, [gameVersion])
 
   const openVersions = async (mod: ModSearchResult): Promise<void> => {
     setSelectedMod(mod)
     setModVersionsList([])
     setVersionsLoading(true)
     try {
-      setModVersionsList(await api.mods.versions(mod.projectId, selectedVersion))
+      setModVersionsList(await api.mods.versions(mod.projectId, gameVersion))
     } catch (error) {
       toast('error', 'Не удалось загрузить версии мода', formatError(error))
     } finally {
@@ -99,7 +116,7 @@ export function ModsPage(): ReactNode {
       const plan = await api.mods.preview(
         selectedMod.projectId,
         version.versionId,
-        selectedVersion
+        gameVersion
       )
       setPending({ mod: selectedMod, version, plan, optional: [] })
       setSelectedMod(null)
@@ -116,7 +133,7 @@ export function ModsPage(): ReactNode {
       const plan = await api.mods.preview(
         pending.mod.projectId,
         pending.version.versionId,
-        selectedVersion,
+        gameVersion,
         optional
       )
       setPending({ ...pending, plan, optional })
@@ -141,8 +158,9 @@ export function ModsPage(): ReactNode {
       await api.mods.install(
         pending.mod.projectId,
         pending.version.versionId,
-        selectedVersion,
-        pending.optional
+        gameVersion,
+        pending.optional,
+        targetId || undefined
       )
       toast('success', 'Мод установлен', `${pending.mod.title} · ${pending.version.versionNumber}`)
       setPending(null)
@@ -157,7 +175,7 @@ export function ModsPage(): ReactNode {
 
   const removeMod = async (mod: InstalledMod): Promise<void> => {
     try {
-      await api.mods.remove(selectedVersion, mod.filename)
+      await api.mods.remove(gameVersion, mod.filename, targetId || undefined)
       toast('info', 'Мод удалён', mod.filename)
       await loadInstalled()
     } catch (error) {
@@ -167,7 +185,7 @@ export function ModsPage(): ReactNode {
 
   const toggleMod = async (mod: InstalledMod): Promise<void> => {
     try {
-      await api.mods.toggle(selectedVersion, mod.filename, !mod.enabled)
+      await api.mods.toggle(gameVersion, mod.filename, !mod.enabled, targetId || undefined)
       await loadInstalled()
     } catch (error) {
       toast('error', 'Не удалось переключить мод', formatError(error))
@@ -177,7 +195,7 @@ export function ModsPage(): ReactNode {
   const checkUpdates = async (): Promise<void> => {
     setCheckingUpdates(true)
     try {
-      const list = await api.mods.checkUpdates(selectedVersion)
+      const list = await api.mods.checkUpdates(gameVersion, targetId || undefined)
       setUpdates(list)
       toast(
         list.length ? 'info' : 'success',
@@ -194,7 +212,7 @@ export function ModsPage(): ReactNode {
   const updateAll = async (): Promise<void> => {
     setCheckingUpdates(true)
     try {
-      const count = await api.mods.updateAll(selectedVersion)
+      const count = await api.mods.updateAll(gameVersion, targetId || undefined)
       toast('success', 'Обновление завершено', `Обновлено модов: ${count}`)
       setUpdates([])
       await loadInstalled()
@@ -224,10 +242,26 @@ export function ModsPage(): ReactNode {
     <div className="page versions-page">
       <div className="page-heading">
         <div>
-          <span className="page-eyebrow">Каталог Modrinth · только Fabric</span>
-          <h1>Моды для Minecraft {selectedVersion}</h1>
+          <span className="page-eyebrow">
+            Каталог Modrinth · только Fabric
+            {targetInstance ? ` · сборка «${targetInstance.name}»` : ''}
+          </span>
+          <h1>Моды для Minecraft {gameVersion}</h1>
         </div>
         <div className="heading-actions">
+          <select
+            className="select-inline"
+            value={targetId}
+            onChange={(event) => setTargetId(event.target.value)}
+            aria-label="Куда устанавливать моды"
+          >
+            <option value="">Общий Fabric-профиль {selectedVersion}</option>
+            {instances.map((instance) => (
+              <option key={instance.id} value={instance.id}>
+                Сборка: {instance.name} ({instance.versionId})
+              </option>
+            ))}
+          </select>
           <div className="heading-stat">
             <span>Установлено</span>
             <strong>{installedMods.filter((mod) => mod.enabled).length} модов</strong>
@@ -253,19 +287,20 @@ export function ModsPage(): ReactNode {
         </div>
       </div>
 
-      {!installed ? (
+      {statusKnown && !installed ? (
         <section className="cozy-note" style={{ marginBottom: 18 }}>
           <span className="cozy-note-icon">
             <McSprite kind="grass" size={32} />
           </span>
           <div>
-            <strong>Сначала скачайте Minecraft {selectedVersion}</strong>
+            <strong>Сначала скачайте Minecraft {gameVersion}</strong>
             <p>
-              Моды устанавливаются в отдельный Fabric-профиль этой версии. Ванильная
-              версия и её миры останутся нетронутыми.
+              {targetInstance
+                ? `Моды установятся в папку сборки «${targetInstance.name}» и не затронут другие сборки.`
+                : 'Моды устанавливаются в отдельный Fabric-профиль этой версии. Ванильная версия и её миры останутся нетронутыми.'}
             </p>
           </div>
-          <Button variant="soft" className="btn-small" onClick={() => void install(selectedVersion)}>
+          <Button variant="soft" className="btn-small" onClick={() => void install(gameVersion)}>
             Скачать версию
           </Button>
         </section>
@@ -493,7 +528,7 @@ export function ModsPage(): ReactNode {
               </div>
             ) : modVersionsList.length === 0 ? (
               <p style={{ textAlign: 'center', padding: 24 }}>
-                Для версии {selectedVersion} подходящих Fabric-версий мода не найдено.
+                Для версии {gameVersion} подходящих Fabric-версий мода не найдено.
               </p>
             ) : (
               <div style={{ maxHeight: 380, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>

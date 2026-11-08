@@ -6,6 +6,7 @@ import { downloadAll } from './downloader'
 import { resolveDependencies, type DepProject, type DepVersion } from './deps'
 import { ensureFabricVersion, fabricVersionId, fetchFabricMeta } from './fabric'
 import { cacheDir, ensureDir, launcherDataDir, versionDir } from './paths'
+import { getInstance } from './instances'
 import { getSettings } from './store'
 import type { VersionJson } from './version'
 
@@ -352,6 +353,32 @@ function modsDir(gameDir: string, moddedId: string): string {
   return ensureDir(path.join(runDir(gameDir, moddedId), 'mods'))
 }
 
+interface ModTarget {
+  dir: string
+  indexKey: string
+  moddedId: string | null
+}
+
+/** Shared Fabric profile (no instance) or an isolated instance mods folder. */
+function resolveTarget(gameVersionId: string, instanceId?: string): ModTarget {
+  if (instanceId) {
+    const instance = getInstance(instanceId)
+    if (!instance) throw new Error('Сборка не найдена')
+    return {
+      dir: ensureDir(path.join(instance.dir, 'mods')),
+      indexKey: `instance:${instanceId}`,
+      moddedId: null
+    }
+  }
+  const moddedId = findModdedVersion(gameVersionId)
+  if (!moddedId) throw new Error('Сначала установите хотя бы один мод — профиль Fabric создастся автоматически')
+  return {
+    dir: modsDir(getSettings().gameDir, moddedId),
+    indexKey: moddedId,
+    moddedId
+  }
+}
+
 export function findModdedVersion(mcVersion: string): string | null {
   const gameDir = getSettings().gameDir
   const root = path.join(gameDir, 'versions')
@@ -373,7 +400,7 @@ export function findModdedVersion(mcVersion: string): string | null {
   return null
 }
 
-async function ensureModdedVersion(mcVersion: string): Promise<string> {
+export async function ensureModdedVersion(mcVersion: string): Promise<string> {
   const existing = findModdedVersion(mcVersion)
   if (existing) return existing
   const meta = await fetchFabricMeta(mcVersion)
@@ -395,7 +422,8 @@ export async function installMod(
   versionId: string,
   gameVersion: string,
   optionalProjectIds: string[] = [],
-  onProgress?: ModProgress
+  onProgress?: ModProgress,
+  instanceId?: string
 ): Promise<void> {
   const plan = await previewModInstall(projectId, versionId, gameVersion, optionalProjectIds)
   if (plan.blocked.length > 0) throw new Error(plan.blocked.join('\n'))
@@ -412,9 +440,9 @@ export async function installMod(
     speed: 0
   })
 
-  const moddedId = await ensureModdedVersion(gameVersion)
-  const settings = getSettings()
-  const destDir = modsDir(settings.gameDir, moddedId)
+  await ensureModdedVersion(gameVersion)
+  const target = resolveTarget(gameVersion, instanceId)
+  const destDir = target.dir
 
   const tasks = plan.files.map((file) => ({
     url: file.url,
@@ -442,7 +470,7 @@ export async function installMod(
   })
 
   const index = readIndex()
-  let entries = index.versions[moddedId] ?? []
+  let entries = index.versions[target.indexKey] ?? []
   const requiredProjectIds = plan.files.map((file) => file.projectId)
   for (const file of plan.files) {
     entries = entries.filter((entry) => entry.projectId !== file.projectId)
@@ -457,7 +485,7 @@ export async function installMod(
       size: file.size,
       requiredProjectIds
     })
-    index.versions[moddedId] = entries
+    index.versions[target.indexKey] = entries
   }
   writeIndex(index)
   log(`Установлено ${plan.files.length} файлов в ${destDir}`)
@@ -482,13 +510,23 @@ function safeFilename(filename: string): string {
   return base
 }
 
-export function listInstalledMods(gameVersionId: string): InstalledMod[] {
-  const moddedId = findModdedVersion(gameVersionId)
-  if (!moddedId) return []
-  const dir = path.join(getSettings().gameDir, 'versions', moddedId, 'run', 'mods')
+export function listInstalledMods(gameVersionId: string, instanceId?: string): InstalledMod[] {
+  let dir: string
+  let indexKey: string
+  if (instanceId) {
+    const instance = getInstance(instanceId)
+    if (!instance) return []
+    dir = path.join(instance.dir, 'mods')
+    indexKey = `instance:${instanceId}`
+  } else {
+    const moddedId = findModdedVersion(gameVersionId)
+    if (!moddedId) return []
+    dir = path.join(getSettings().gameDir, 'versions', moddedId, 'run', 'mods')
+    indexKey = moddedId
+  }
   if (!fs.existsSync(dir)) return []
   const index = readIndex()
-  const entries = index.versions[moddedId] ?? []
+  const entries = index.versions[indexKey] ?? []
 
   return fs
     .readdirSync(dir)
@@ -509,45 +547,97 @@ export function listInstalledMods(gameVersionId: string): InstalledMod[] {
     })
 }
 
-function resolveModFile(gameVersionId: string, filename: string): { moddedId: string; file: string } {
-  const moddedId = findModdedVersion(gameVersionId)
-  if (!moddedId) throw new Error('Для этой версии ещё не установлены моды')
+function resolveModFile(
+  gameVersionId: string,
+  filename: string,
+  instanceId?: string
+): { indexKey: string; file: string } {
+  let dir: string
+  let indexKey: string
+  if (instanceId) {
+    const instance = getInstance(instanceId)
+    if (!instance) throw new Error('Сборка не найдена')
+    dir = path.join(instance.dir, 'mods')
+    indexKey = `instance:${instanceId}`
+  } else {
+    const moddedId = findModdedVersion(gameVersionId)
+    if (!moddedId) throw new Error('Для этой версии ещё не установлены моды')
+    dir = path.join(getSettings().gameDir, 'versions', moddedId, 'run', 'mods')
+    indexKey = moddedId
+  }
   const safe = safeFilename(filename)
   if (!safe.endsWith('.jar') && !safe.endsWith('.jar.disabled')) {
     throw new Error('Можно управлять только jar-файлами модов')
   }
-  const file = path.join(getSettings().gameDir, 'versions', moddedId, 'run', 'mods', safe)
+  const file = path.join(dir, safe)
   if (!fs.existsSync(file)) throw new Error('Файл мода не найден')
-  return { moddedId, file }
+  return { indexKey, file }
 }
 
-export function removeMod(gameVersionId: string, filename: string): void {
-  const { moddedId, file } = resolveModFile(gameVersionId, filename)
+export function removeMod(gameVersionId: string, filename: string, instanceId?: string): void {
+  const { indexKey, file } = resolveModFile(gameVersionId, filename, instanceId)
   const base = file.endsWith('.disabled') ? path.basename(file).slice(0, -'.disabled'.length) : path.basename(file)
   fs.rmSync(file, { force: true })
   const index = readIndex()
-  if (index.versions[moddedId]) {
-    index.versions[moddedId] = index.versions[moddedId].filter((entry) => entry.filename !== base)
+  if (index.versions[indexKey]) {
+    index.versions[indexKey] = index.versions[indexKey].filter((entry) => entry.filename !== base)
     writeIndex(index)
   }
   log(`Удалён мод ${filename}`)
 }
 
-export function toggleMod(gameVersionId: string, filename: string, enabled: boolean): void {
-  const { file } = resolveModFile(gameVersionId, filename)
+export function toggleMod(
+  gameVersionId: string,
+  filename: string,
+  enabled: boolean,
+  instanceId?: string
+): void {
+  const { file } = resolveModFile(gameVersionId, filename, instanceId)
   const disabled = file.endsWith('.disabled')
   if (enabled && disabled) fs.renameSync(file, file.slice(0, -'.disabled'.length))
   if (!enabled && !disabled) fs.renameSync(file, `${file}.disabled`)
+}
+
+/** Disables the most recently modified enabled mod. Used by the crash card. */
+export function disableLastMod(gameVersionId: string, instanceId?: string): string | null {
+  let dir: string
+  if (instanceId) {
+    const instance = getInstance(instanceId)
+    if (!instance) return null
+    dir = path.join(instance.dir, 'mods')
+  } else {
+    const moddedId = findModdedVersion(gameVersionId)
+    if (!moddedId) return null
+    dir = path.join(getSettings().gameDir, 'versions', moddedId, 'run', 'mods')
+  }
+  try {
+    const jars = fs
+      .readdirSync(dir)
+      .filter((file) => file.endsWith('.jar'))
+      .map((file) => ({ file, mtime: fs.statSync(path.join(dir, file)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime)
+    if (!jars.length) return null
+    const target = jars[0].file
+    fs.renameSync(path.join(dir, target), path.join(dir, `${target}.disabled`))
+    return target
+  } catch {
+    return null
+  }
 }
 
 /* ------------------------------------------------------------------ */
 /*  Updates                                                           */
 /* ------------------------------------------------------------------ */
 
-export async function checkModUpdates(gameVersionId: string): Promise<ModUpdate[]> {
-  const moddedId = findModdedVersion(gameVersionId)
-  if (!moddedId) return []
-  const entries = readIndex().versions[moddedId] ?? []
+export async function checkModUpdates(
+  gameVersionId: string,
+  instanceId?: string
+): Promise<ModUpdate[]> {
+  const indexKey = instanceId
+    ? `instance:${instanceId}`
+    : findModdedVersion(gameVersionId)
+  if (!indexKey) return []
+  const entries = readIndex().versions[indexKey] ?? []
   const updates: ModUpdate[] = []
 
   for (const entry of entries) {
@@ -573,12 +663,12 @@ export async function checkModUpdates(gameVersionId: string): Promise<ModUpdate[
   return updates
 }
 
-export async function updateAllMods(gameVersionId: string): Promise<number> {
-  const updates = await checkModUpdates(gameVersionId)
+export async function updateAllMods(gameVersionId: string, instanceId?: string): Promise<number> {
+  const updates = await checkModUpdates(gameVersionId, instanceId)
   let updated = 0
   for (const update of updates) {
     try {
-      await installMod(update.projectId, update.versionId, gameVersionId)
+      await installMod(update.projectId, update.versionId, gameVersionId, [], undefined, instanceId)
       updated += 1
     } catch (error) {
       log(`Не удалось обновить ${update.title}: ${error instanceof Error ? error.message : error}`)
@@ -591,14 +681,17 @@ export async function updateAllMods(gameVersionId: string): Promise<number> {
 /*  Pre-launch verification                                           */
 /* ------------------------------------------------------------------ */
 
-export function verifyModsBeforeLaunch(version: VersionJson): void {
-  if (!version.cozyModded) return
-  const moddedId = version.id
+export function verifyModsBeforeLaunch(
+  version: VersionJson,
+  options: { modsDir?: string; indexKey?: string } = {}
+): void {
+  if (!version.cozyModded && !options.modsDir) return
   const gameDir = getSettings().gameDir
-  const dir = path.join(runDir(gameDir, moddedId), 'mods')
+  const indexKey = options.indexKey ?? version.id
+  const dir = options.modsDir ?? path.join(runDir(gameDir, version.id), 'mods')
   if (!fs.existsSync(dir)) return
 
-  const entries = readIndex().versions[moddedId] ?? []
+  const entries = readIndex().versions[indexKey] ?? []
   if (entries.length === 0) return
 
   const enabled = new Set(

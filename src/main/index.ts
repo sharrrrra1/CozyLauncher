@@ -4,13 +4,14 @@ import path from 'node:path'
 import { registerIpc } from './ipc'
 import { detectJava } from './core/java'
 import { maybeAutoCheck } from './core/update'
-import { runSmoke, runModsSmoke } from './smoke'
+import { runSmoke, runModsSmoke, runInstanceSmoke } from './smoke'
 
 let mainWindow: BrowserWindow | null = null
 let quitting = false
 
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
+  console.log('Another Cozy Launcher instance is already running — exiting')
   app.quit()
 } else {
   app.on('second-instance', () => {
@@ -60,11 +61,13 @@ function createWindow(): BrowserWindow {
 
 async function captureScreenshots(window: BrowserWindow): Promise<void> {
   const outDir = process.env.COZY_SCREENSHOT as string
+  fs.mkdirSync(outDir, { recursive: true })
+  fs.appendFileSync(path.join(outDir, 'debug.log'), `capture start ${new Date().toISOString()}\n`)
   const pages = (process.env.COZY_SCREENSHOT_PAGES ?? 'home,versions,accounts,settings')
     .split(',')
     .map((page) => page.trim())
     .filter(Boolean)
-  fs.mkdirSync(outDir, { recursive: true })
+  fs.appendFileSync(path.join(outDir, 'debug.log'), `pages=${pages.join('|')}\n`)
 
   await new Promise((resolve) => setTimeout(resolve, 2200))
   for (let attempt = 0; attempt < 40; attempt += 1) {
@@ -74,6 +77,7 @@ async function captureScreenshots(window: BrowserWindow): Promise<void> {
     if (isReady) break
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
+  fs.appendFileSync(path.join(outDir, 'debug.log'), 'ready\n')
   await window.webContents.executeJavaScript(
     "document.documentElement.dataset.animations = 'off'; true;"
   )
@@ -96,22 +100,62 @@ async function captureScreenshots(window: BrowserWindow): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 450))
   }
   for (const page of pages) {
-    await window.webContents.executeJavaScript(
-      `window.location.hash = ${JSON.stringify(`#/${page}`)}; true;`
-    )
-    await new Promise((resolve) => setTimeout(resolve, page === 'home' ? 1400 : 900))
-    if (page === 'mods') {
-      for (let attempt = 0; attempt < 40; attempt += 1) {
-        const rows = (await window.webContents.executeJavaScript(
-          "document.querySelectorAll('.version-row').length"
-        )) as number
-        if (rows > 0) break
-        await new Promise((resolve) => setTimeout(resolve, 250))
+    try {
+      fs.appendFileSync(path.join(outDir, 'debug.log'), `page ${page}\n`)
+      await window.webContents.executeJavaScript(
+        `window.location.hash = ${JSON.stringify(`#/${page}`)}; true;`
+      )
+      await new Promise((resolve) => setTimeout(resolve, page === 'home' ? 1400 : 900))
+      fs.appendFileSync(path.join(outDir, 'debug.log'), `hash ${page}\n`)
+      if (page === 'mods') {
+        for (let attempt = 0; attempt < 40; attempt += 1) {
+          const rows = (await window.webContents.executeJavaScript(
+            "document.querySelectorAll('.version-row').length"
+          )) as number
+          if (rows > 0) break
+          await new Promise((resolve) => setTimeout(resolve, 250))
+        }
+        // Pick an instance target so the screenshot shows the isolation selector.
+        await window.webContents.executeJavaScript(
+          `(() => {
+            const select = document.querySelector('select')
+            if (!select) return false
+            const option = Array.from(select.options).find((item) => item.value)
+            if (!option) return false
+            select.value = option.value
+            select.dispatchEvent(new Event('change', { bubbles: true }))
+            return true
+          })()`
+        )
+        await new Promise((resolve) => setTimeout(resolve, 900))
       }
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      const image = await window.webContents.capturePage()
+      fs.writeFileSync(path.join(outDir, `${page}.png`), image.toPNG())
+      try {
+        const text = (await window.webContents.executeJavaScript(
+          'document.body.innerText'
+        )) as string
+        fs.writeFileSync(path.join(outDir, `${page}.txt`), text)
+        const meta = (await window.webContents.executeJavaScript(
+          `(() => ({
+            hash: window.location.hash,
+            selects: Array.from(document.querySelectorAll('select')).map((el) => ({
+              label: el.getAttribute('aria-label'),
+              value: el.value,
+              options: Array.from(el.options).map((option) => option.textContent)
+            })),
+            empties: Array.from(document.querySelectorAll('.empty-state, .empty, [class*="empty"]')).map((el) => el.innerText)
+          }))()`
+        )) as unknown
+        fs.writeFileSync(path.join(outDir, `${page}.meta.json`), JSON.stringify(meta, null, 2))
+      } catch {
+        // text dump is only a debugging aid
+      }
+      fs.appendFileSync(path.join(outDir, 'debug.log'), `saved ${page}\n`)
+    } catch (error) {
+      fs.appendFileSync(path.join(outDir, 'debug.log'), `error ${page}: ${String(error)}\n`)
+      console.error(`Не удалось снять страницу ${page}:`, error)
     }
-    const image = await window.webContents.capturePage()
-    fs.writeFileSync(path.join(outDir, `${page}.png`), image.toPNG())
   }
   app.exit(0)
 }
@@ -157,6 +201,14 @@ app.whenReady().then(async () => {
     const outDir =
       process.env.COZY_SMOKE_OUT ?? path.join(app.getPath('userData'), 'smoke')
     await runModsSmoke(mcVersion, specs, outDir, process.env.COZY_SMOKE_LAUNCH === '1')
+    return
+  }
+
+  const instanceSmoke = process.env.COZY_INSTANCE_SMOKE
+  if (instanceSmoke) {
+    const outDir =
+      process.env.COZY_SMOKE_OUT ?? path.join(app.getPath('userData'), 'smoke')
+    await runInstanceSmoke(instanceSmoke, outDir)
     return
   }
 

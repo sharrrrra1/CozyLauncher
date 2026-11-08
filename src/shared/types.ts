@@ -48,6 +48,8 @@ export interface Settings {
   lastVersion: string
   lastAccountId: string
   updateServerUrl?: string
+  downloadMirror: 'official' | 'bmclapi'
+  proxyUrl: string
 }
 
 export interface Account {
@@ -125,6 +127,7 @@ export type LaunchPhase =
 export interface LaunchState {
   phase: LaunchPhase
   versionId: string
+  instanceId?: string
   message?: string
   pid?: number
   code?: number | null
@@ -195,11 +198,12 @@ export interface CozyApi {
     onAuth(cb: (progress: AuthProgress) => void): () => void
   }
   launch: {
-    start(versionId: string): Promise<void>
+    start(versionId: string, instanceId?: string, safeMode?: boolean): Promise<void>
     stop(): Promise<void>
     logs(): Promise<LogLine[]>
     onState(cb: (state: LaunchState) => void): () => void
     onLog(cb: (line: LogLine) => void): () => void
+    onCrash(cb: (crash: CrashInfo) => void): () => void
   }
   shell: {
     openExternal(url: string): Promise<void>
@@ -228,20 +232,62 @@ export interface CozyApi {
       projectId: string,
       versionId: string,
       gameVersion: string,
-      optionalProjectIds?: string[]
+      optionalProjectIds?: string[],
+      instanceId?: string
     ): Promise<void>
-    listInstalled(gameVersionId: string): Promise<InstalledMod[]>
-    remove(gameVersionId: string, filename: string): Promise<void>
-    toggle(gameVersionId: string, filename: string, enabled: boolean): Promise<void>
-    checkUpdates(gameVersionId: string): Promise<ModUpdate[]>
-    updateAll(gameVersionId: string): Promise<number>
+    listInstalled(gameVersionId: string, instanceId?: string): Promise<InstalledMod[]>
+    remove(gameVersionId: string, filename: string, instanceId?: string): Promise<void>
+    toggle(
+      gameVersionId: string,
+      filename: string,
+      enabled: boolean,
+      instanceId?: string
+    ): Promise<void>
+    checkUpdates(gameVersionId: string, instanceId?: string): Promise<ModUpdate[]>
+    updateAll(gameVersionId: string, instanceId?: string): Promise<number>
     installPack(): Promise<{ name: string; files: number } | null>
     onProgress(cb: (progress: InstallProgress) => void): () => void
     onLog(cb: (line: string) => void): () => void
   }
   server: {
     config(): Promise<ServerConfig>
-    play(versionId: string, host: string, port: number): Promise<void>
+    play(versionId: string, host: string, port: number, instanceId?: string): Promise<void>
+  }
+  instances: {
+    list(): Promise<Instance[]>
+    create(input: CreateInstanceInput): Promise<Instance>
+    update(
+      id: string,
+      patch: Partial<Pick<Instance, 'name' | 'versionId' | 'loader' | 'ramMb' | 'javaPath'>>
+    ): Promise<Instance>
+    remove(id: string): Promise<void>
+    clone(id: string, name?: string): Promise<Instance>
+    openFolder(id: string): Promise<void>
+    launch(id: string, safeMode?: boolean): Promise<void>
+  }
+  crash: {
+    safeMode(crashId: string): Promise<void>
+    addMemory(crashId: string): Promise<void>
+    disableLastMod(crashId: string): Promise<void>
+    openReport(crashId: string): Promise<void>
+    copyReport(crashId: string): Promise<string>
+    uploadReport(crashId: string): Promise<string>
+  }
+  servers: {
+    list(): Promise<ServerEntry[]>
+    add(input: { name?: string; address: string; port?: number }): Promise<ServerEntry>
+    update(id: string, patch: Partial<Pick<ServerEntry, 'name' | 'favorite'>>): Promise<ServerEntry>
+    remove(id: string): Promise<void>
+    ping(host: string, port: number): Promise<ServerStatus>
+    pingAll(): Promise<Record<string, ServerStatus>>
+    import(): Promise<{ imported: number; skipped: number; files: string[] }>
+    join(host: string, port: number, versionId: string, instanceId?: string): Promise<void>
+  }
+  imports: {
+    scan(): Promise<ImportScan>
+    connect(candidateId: string, name: string, versionId: string, loader?: 'vanilla' | 'fabric'): Promise<Instance>
+    useVanilla(): Promise<string>
+    accounts(): Promise<{ imported: string[]; skipped: number }>
   }
 }
 
@@ -339,3 +385,101 @@ export interface ServerConfig {
   features: string[]
   mcVersion: string
 }
+
+export interface Instance {
+  id: string
+  name: string
+  versionId: string
+  loader: 'vanilla' | 'fabric'
+  dir: string
+  external: boolean
+  ramMb?: number
+  javaPath?: string
+  createdAt: number
+  lastPlayedAt?: number
+  modsCount?: number
+}
+
+export interface CreateInstanceInput {
+  name: string
+  versionId: string
+  loader?: 'vanilla' | 'fabric'
+  ramMb?: number
+  javaPath?: string
+  externalDir?: string
+}
+
+export interface ServerEntry {
+  id: string
+  name: string
+  host: string
+  port: number
+  favorite: boolean
+  createdAt: number
+  lastPlayedAt?: number
+  icon?: string
+}
+
+export interface ServerStatus {
+  host: string
+  port: number
+  online: boolean
+  latencyMs?: number
+  version?: string
+  protocol?: number
+  players?: { online: number; max: number }
+  motd?: string
+  favicon?: string
+  error?: string
+}
+
+export interface ImportCandidate {
+  id: string
+  launcher: string
+  name: string
+  gameDir: string
+  mcVersion?: string
+  modsCount: number
+  hasSaves: boolean
+  hasServers: boolean
+}
+
+export interface ImportScan {
+  vanilla: {
+    gameDir: string
+    versions: number
+    exists: boolean
+    isCurrent: boolean
+  }
+  candidates: ImportCandidate[]
+  accountNames: string[]
+}
+
+export type CrashRecommendation =
+  | 'more-memory'
+  | 'safe-mode'
+  | 'disable-last-mod'
+  | 'fix-java'
+  | 'update-drivers'
+  | 'check-mod-dependency'
+  | 'none'
+
+export interface CrashInfo {
+  id: string
+  versionId: string
+  instanceId?: string
+  createdAt: number
+  exitCode: number | null
+  title: string
+  summary: string
+  details: string[]
+  hints: string[]
+  recommendation: CrashRecommendation
+  suspects: string[]
+  signature?: string
+  reportPath?: string
+  logPath?: string
+  memoryMb: number
+  modsCount: number
+}
+

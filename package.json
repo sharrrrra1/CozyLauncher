@@ -1,8 +1,8 @@
 {
   "name": "cozy-launcher",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "Cozy Launcher — уютный лаунчер Minecraft с офлайн и Microsoft аккаунтами",
+  "description": "Cozy Launcher — уютный лаунчер Minecraft со сборками, серверами и разбором крашей",
   "author": "CozyPOLIT",
   "main": "./out/main/index.js",
   "scripts": {
@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
-    "extract-zip": "^2.0.1"
+    "extract-zip": "^2.0.1",
+    "undici": "^7.30.2"
   },
   "devDependencies": {
     "@fontsource-variable/manrope": "^5.3.0",

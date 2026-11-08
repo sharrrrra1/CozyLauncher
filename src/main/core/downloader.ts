@@ -4,7 +4,10 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import { Agent, ProxyAgent, setGlobalDispatcher } from 'undici'
 import { ensureDir } from './paths'
+import { mirrorCandidates, type DownloadMirror } from './mirror'
+import { getSettings } from './store'
 
 export interface DownloadTask {
   url: string
@@ -28,10 +31,36 @@ export interface DownloadOptions {
   onProgress?: (progress: DownloadProgress) => void
   signal?: AbortSignal
   concurrency?: number
+  mirror?: DownloadMirror
 }
 
-const USER_AGENT = 'CozyLauncher/1.0.0 (Minecraft launcher)'
+const USER_AGENT = 'CozyLauncher/1.2.0 (Minecraft launcher)'
 const PROGRESS_INTERVAL = 120
+
+let configuredProxy = ''
+
+/** Applies the proxy from settings to every Node fetch in the main process. */
+export function configureNetwork(proxyUrl?: string): void {
+  const normalized = (proxyUrl ?? '').trim()
+  if (normalized === configuredProxy) return
+  configuredProxy = normalized
+  try {
+    if (normalized) {
+      setGlobalDispatcher(new ProxyAgent(normalized))
+    } else {
+      setGlobalDispatcher(new Agent())
+    }
+  } catch {
+    // Invalid proxy URL: keep the default dispatcher rather than breaking networking.
+  }
+}
+
+/** Reads mirror/proxy settings before a download batch. */
+export function networkFromSettings(): { mirror: DownloadMirror } {
+  const settings = getSettings()
+  configureNetwork(settings.proxyUrl)
+  return { mirror: settings.downloadMirror === 'bmclapi' ? 'bmclapi' : 'official' }
+}
 
 function abortError(): Error {
   const error = new Error('Загрузка отменена')
@@ -60,35 +89,63 @@ async function fileSize(file: string): Promise<number> {
   }
 }
 
-async function downloadOne(task: DownloadTask, signal?: AbortSignal): Promise<void> {
+async function verifyHash(file: string, task: DownloadTask): Promise<boolean> {
+  if (task.sha1) {
+    const actual = await sha1File(file)
+    if (actual.toLowerCase() !== task.sha1.toLowerCase()) return false
+  }
+  if (task.sha512) {
+    const actual = await sha512File(file)
+    if (actual.toLowerCase() !== task.sha512.toLowerCase()) return false
+  }
+  return true
+}
+
+async function fetchWithResume(
+  url: string,
+  temp: string,
+  expectSize: number | undefined,
+  signal: AbortSignal | undefined,
+  allowResume: boolean
+): Promise<void> {
+  const existing = allowResume ? await fileSize(temp) : -1
+  const resumeAt = existing > 0 && (!expectSize || existing < expectSize) ? existing : 0
+  const headers: Record<string, string> = { 'User-Agent': USER_AGENT }
+  if (resumeAt > 0) headers.Range = `bytes=${resumeAt}-`
+
+  const response = await fetch(url, { headers, signal })
+  if (!response.ok || !response.body) {
+    throw new Error(`HTTP ${response.status} для ${url}`)
+  }
+
+  // A server may ignore Range and answer with 200; then the file must restart.
+  const append = resumeAt > 0 && response.status === 206
+  await fsp.mkdir(path.dirname(temp), { recursive: true })
+  await pipeline(
+    Readable.fromWeb(response.body as never),
+    fs.createWriteStream(temp, { flags: append ? 'a' : 'w' })
+  )
+}
+
+async function downloadOne(
+  task: DownloadTask,
+  signal?: AbortSignal,
+  mirror: DownloadMirror = 'official'
+): Promise<void> {
   const temp = `${task.dest}.cozy-part`
   await fsp.mkdir(path.dirname(task.dest), { recursive: true })
+  const candidates = mirrorCandidates(task.url, mirror)
   let lastError: unknown
+
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     if (signal?.aborted) throw abortError()
+    const url = candidates[Math.min(candidates.length - 1, Math.floor((attempt - 1) / 2))]
     try {
-      const response = await fetch(task.url, {
-        headers: { 'User-Agent': USER_AGENT },
-        signal
-      })
-      if (!response.ok || !response.body) {
-        throw new Error(`HTTP ${response.status} для ${task.url}`)
-      }
-      await pipeline(
-        Readable.fromWeb(response.body as never),
-        fs.createWriteStream(temp)
-      )
-      if (task.sha1) {
-        const actual = await sha1File(temp)
-        if (actual.toLowerCase() !== task.sha1.toLowerCase()) {
-          throw new Error(`SHA-1 не совпал для ${task.dest}`)
-        }
-      }
-      if (task.sha512) {
-        const actual = await sha512File(temp)
-        if (actual.toLowerCase() !== task.sha512.toLowerCase()) {
-          throw new Error(`SHA-512 не совпал для ${task.dest}`)
-        }
+      // First attempt may resume a partial file left by a previous run.
+      await fetchWithResume(url, temp, task.size, signal, attempt === 1)
+      if (!(await verifyHash(temp, task))) {
+        await fsp.rm(temp, { force: true }).catch(() => undefined)
+        throw new Error(`Хеш не совпал для ${task.dest}`)
       }
       await fsp.rename(temp, task.dest).catch(async () => {
         await fsp.rm(task.dest, { force: true })
@@ -97,6 +154,7 @@ async function downloadOne(task: DownloadTask, signal?: AbortSignal): Promise<vo
       return
     } catch (error) {
       lastError = error
+      // A corrupted partial file must never be resumed again.
       await fsp.rm(temp, { force: true }).catch(() => undefined)
       if (signal?.aborted) throw abortError()
       if (attempt < 3) {
@@ -118,6 +176,7 @@ export async function downloadAll(
   const list = [...unique.values()]
   const total = list.length
   const totalBytes = list.reduce((sum, task) => sum + (task.size ?? 0), 0)
+  const mirror = options.mirror ?? networkFromSettings().mirror
   let done = 0
   let bytes = 0
   let speed = 0
@@ -161,7 +220,7 @@ export async function downloadAll(
       const task = pending[cursor]
       cursor += 1
       current = task.label ?? path.basename(task.dest)
-      await downloadOne(task, options.signal)
+      await downloadOne(task, options.signal, mirror)
       done += 1
       bytes += task.size ?? (await fileSize(task.dest))
       emit()

@@ -3,6 +3,7 @@ import type {
   Account,
   AuthProgress,
   CozyApi,
+  CrashInfo,
   InstallProgress,
   LaunchState,
   LogLine,
@@ -60,11 +61,13 @@ const api: CozyApi = {
     onAuth: (cb) => subscribe<AuthProgress>('accounts:auth', cb)
   },
   launch: {
-    start: (versionId) => ipcRenderer.invoke('launch:start', versionId),
+    start: (versionId, instanceId, safeMode) =>
+      ipcRenderer.invoke('launch:start', versionId, instanceId, safeMode),
     stop: () => ipcRenderer.invoke('launch:stop'),
     logs: () => ipcRenderer.invoke('launch:logs'),
     onState: (cb) => subscribe<LaunchState>('launch:state', cb),
-    onLog: (cb) => subscribe<LogLine>('launch:log', cb)
+    onLog: (cb) => subscribe<LogLine>('launch:log', cb),
+    onCrash: (cb) => subscribe<CrashInfo>('launch:crash', cb)
   },
   shell: {
     openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
@@ -75,21 +78,68 @@ const api: CozyApi = {
     versions: (projectId, gameVersion) => ipcRenderer.invoke('mods:versions', projectId, gameVersion),
     preview: (projectId, versionId, gameVersion, optionalProjectIds) =>
       ipcRenderer.invoke('mods:preview', projectId, versionId, gameVersion, optionalProjectIds),
-    install: (projectId, versionId, gameVersion, optionalProjectIds) =>
-      ipcRenderer.invoke('mods:install', projectId, versionId, gameVersion, optionalProjectIds),
-    listInstalled: (gameVersionId) => ipcRenderer.invoke('mods:list-installed', gameVersionId),
-    remove: (gameVersionId, filename) => ipcRenderer.invoke('mods:remove', gameVersionId, filename),
-    toggle: (gameVersionId, filename, enabled) =>
-      ipcRenderer.invoke('mods:toggle', gameVersionId, filename, enabled),
-    checkUpdates: (gameVersionId) => ipcRenderer.invoke('mods:check-updates', gameVersionId),
-    updateAll: (gameVersionId) => ipcRenderer.invoke('mods:update-all', gameVersionId),
+    install: (projectId, versionId, gameVersion, optionalProjectIds, instanceId) =>
+      ipcRenderer.invoke(
+        'mods:install',
+        projectId,
+        versionId,
+        gameVersion,
+        optionalProjectIds,
+        instanceId
+      ),
+    listInstalled: (gameVersionId, instanceId) =>
+      ipcRenderer.invoke('mods:list-installed', gameVersionId, instanceId),
+    remove: (gameVersionId, filename, instanceId) =>
+      ipcRenderer.invoke('mods:remove', gameVersionId, filename, instanceId),
+    toggle: (gameVersionId, filename, enabled, instanceId) =>
+      ipcRenderer.invoke('mods:toggle', gameVersionId, filename, enabled, instanceId),
+    checkUpdates: (gameVersionId, instanceId) =>
+      ipcRenderer.invoke('mods:check-updates', gameVersionId, instanceId),
+    updateAll: (gameVersionId, instanceId) =>
+      ipcRenderer.invoke('mods:update-all', gameVersionId, instanceId),
     installPack: () => ipcRenderer.invoke('mods:install-pack'),
     onProgress: (cb) => subscribe<InstallProgress>('mods:progress', cb),
     onLog: (cb) => subscribe<string>('mods:log', cb)
   },
   server: {
     config: () => ipcRenderer.invoke('server:config'),
-    play: (versionId, host, port) => ipcRenderer.invoke('server:play', versionId, host, port)
+    play: (versionId, host, port, instanceId) =>
+      ipcRenderer.invoke('server:play', versionId, host, port, instanceId)
+  },
+  instances: {
+    list: () => ipcRenderer.invoke('instances:list'),
+    create: (input) => ipcRenderer.invoke('instances:create', input),
+    update: (id, patch) => ipcRenderer.invoke('instances:update', id, patch),
+    remove: (id) => ipcRenderer.invoke('instances:remove', id),
+    clone: (id, name) => ipcRenderer.invoke('instances:clone', id, name),
+    openFolder: (id) => ipcRenderer.invoke('instances:open-folder', id),
+    launch: (id, safeMode) => ipcRenderer.invoke('instances:launch', id, safeMode)
+  },
+  crash: {
+    safeMode: (crashId) => ipcRenderer.invoke('crash:safe-mode', crashId),
+    addMemory: (crashId) => ipcRenderer.invoke('crash:add-memory', crashId),
+    disableLastMod: (crashId) => ipcRenderer.invoke('crash:disable-last-mod', crashId),
+    openReport: (crashId) => ipcRenderer.invoke('crash:open-report', crashId),
+    copyReport: (crashId) => ipcRenderer.invoke('crash:copy-report', crashId),
+    uploadReport: (crashId) => ipcRenderer.invoke('crash:upload-report', crashId)
+  },
+  servers: {
+    list: () => ipcRenderer.invoke('servers:list'),
+    add: (input) => ipcRenderer.invoke('servers:add', input),
+    update: (id, patch) => ipcRenderer.invoke('servers:update', id, patch),
+    remove: (id) => ipcRenderer.invoke('servers:remove', id),
+    ping: (host, port) => ipcRenderer.invoke('servers:ping', host, port),
+    pingAll: () => ipcRenderer.invoke('servers:ping-all'),
+    import: () => ipcRenderer.invoke('servers:import'),
+    join: (host, port, versionId, instanceId) =>
+      ipcRenderer.invoke('servers:join', host, port, versionId, instanceId)
+  },
+  imports: {
+    scan: () => ipcRenderer.invoke('imports:scan'),
+    connect: (candidateId, name, versionId, loader) =>
+      ipcRenderer.invoke('imports:connect', candidateId, name, versionId, loader),
+    useVanilla: () => ipcRenderer.invoke('imports:use-vanilla'),
+    accounts: () => ipcRenderer.invoke('imports:accounts')
   },
   app: {
     version: ipcRenderer.sendSync('app:version') as string

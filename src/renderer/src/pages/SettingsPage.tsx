@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { AccentName, JavaInfo } from '@shared/types'
+import type { AccentName, ImportCandidate, ImportScan, JavaInfo } from '@shared/types'
 import { useApp } from '../state/AppContext'
 import { api, formatBytes, formatError } from '../lib/api'
-import { Badge, Button, Spinner, Toggle } from '../components/ui'
+import { Badge, Button, Field, Modal, Spinner, Toggle } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { Torch } from '../components/Stickers'
 import { McSprite } from '../components/McSprite'
@@ -71,7 +71,7 @@ function Row({
 }
 
 export function SettingsPage(): ReactNode {
-  const { settings, system, updateSettings, toast } = useApp()
+  const { settings, system, updateSettings, refreshAccounts, toast } = useApp()
   const [javaList, setJavaList] = useState<JavaInfo[] | null>(null)
   const [javaLoading, setJavaLoading] = useState(false)
   const [ramDraft, setRamDraft] = useState(settings?.ramMb ?? 2048)
@@ -79,6 +79,13 @@ export function SettingsPage(): ReactNode {
   const [heightDraft, setHeightDraft] = useState(String(settings?.height ?? 720))
   const [jvmDraft, setJvmDraft] = useState(settings?.jvmArgs ?? '')
   const [clientDraft, setClientDraft] = useState(settings?.msClientId ?? '')
+  const [proxyDraft, setProxyDraft] = useState(settings?.proxyUrl ?? '')
+  const [scan, setScan] = useState<ImportScan | null>(null)
+  const [scanning, setScanning] = useState(false)
+  const [importing, setImporting] = useState<string | null>(null)
+  const [connectTarget, setConnectTarget] = useState<ImportCandidate | null>(null)
+  const [connectName, setConnectName] = useState('')
+  const [connectVersion, setConnectVersion] = useState('')
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -87,7 +94,15 @@ export function SettingsPage(): ReactNode {
     setHeightDraft(String(settings?.height ?? 720))
     setJvmDraft(settings?.jvmArgs ?? '')
     setClientDraft(settings?.msClientId ?? '')
-  }, [settings?.ramMb, settings?.width, settings?.height, settings?.jvmArgs, settings?.msClientId])
+    setProxyDraft(settings?.proxyUrl ?? '')
+  }, [
+    settings?.ramMb,
+    settings?.width,
+    settings?.height,
+    settings?.jvmArgs,
+    settings?.msClientId,
+    settings?.proxyUrl
+  ])
 
   useEffect(() => {
     return () => {
@@ -109,6 +124,19 @@ export function SettingsPage(): ReactNode {
 
   useEffect(() => {
     void detectJava()
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    api.imports
+      .scan()
+      .then((result) => {
+        if (alive) setScan(result)
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
   }, [])
 
   if (!settings) {
@@ -165,6 +193,87 @@ export function SettingsPage(): ReactNode {
     if (!chosen) return
     await updateSettings({ gameDir: chosen })
     toast('success', 'Папка игры изменена', chosen)
+  }
+
+  const commitProxy = (): void => {
+    const value = proxyDraft.trim()
+    if (value === settings.proxyUrl) return
+    setProxyDraft(value)
+    void updateSettings({ proxyUrl: value })
+    toast(
+      value ? 'success' : 'info',
+      value ? 'Прокси сохранён' : 'Прокси отключён',
+      value || 'Загрузки пойдут напрямую'
+    )
+  }
+
+  const runScan = async (): Promise<void> => {
+    setScanning(true)
+    try {
+      setScan(await api.imports.scan())
+    } catch (error) {
+      toast('error', 'Не удалось просканировать лаунчеры', formatError(error))
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const openConnect = (candidate: ImportCandidate): void => {
+    setConnectTarget(candidate)
+    setConnectName(candidate.name)
+    setConnectVersion(candidate.mcVersion ?? settings.lastVersion)
+  }
+
+  const connectImport = async (): Promise<void> => {
+    if (!connectTarget) return
+    if (!connectName.trim() || !/^[A-Za-z0-9._-]+$/.test(connectVersion.trim())) {
+      toast('error', 'Проверьте название и версию Minecraft')
+      return
+    }
+    setImporting(connectTarget.id)
+    try {
+      await api.imports.connect(
+        connectTarget.id,
+        connectName.trim(),
+        connectVersion.trim(),
+        connectTarget.modsCount > 0 ? 'fabric' : 'vanilla'
+      )
+      toast('success', 'Сборка подключена', `${connectName.trim()} → вкладка «Сборки»`)
+      setConnectTarget(null)
+      await runScan()
+    } catch (error) {
+      toast('error', 'Не удалось подключить сборку', formatError(error))
+    } finally {
+      setImporting(null)
+    }
+  }
+
+  const useVanilla = async (): Promise<void> => {
+    try {
+      const dir = await api.imports.useVanilla()
+      await updateSettings({})
+      toast('success', 'Папка .minecraft подключена', dir)
+      await runScan()
+    } catch (error) {
+      toast('error', 'Не удалось подключить .minecraft', formatError(error))
+    }
+  }
+
+  const importAccounts = async (): Promise<void> => {
+    try {
+      const result = await api.imports.accounts()
+      toast(
+        result.imported.length ? 'success' : 'info',
+        result.imported.length
+          ? `Импортировано аккаунтов: ${result.imported.length}`
+          : 'Новых офлайн-аккаунтов не найдено',
+        result.imported.join(', ') || 'Офлайн-аккаунты ищутся в launcher_profiles.json'
+      )
+      await api.accounts.list().catch(() => undefined)
+      await refreshAccounts()
+    } catch (error) {
+      toast('error', 'Не удалось импортировать аккаунты', formatError(error))
+    }
   }
 
   const matchingJava = javaList?.filter((item) => item.major >= 21) ?? []
@@ -448,6 +557,140 @@ export function SettingsPage(): ReactNode {
         </Section>
 
         <Section
+          title="Загрузки и сеть"
+          subtitle="Зеркала, прокси и докачка файлов"
+          icon={<Icon name="download" size={19} />}
+        >
+          <Row
+            label="Зеркало Mojang"
+            hint="BMCLAPI ускоряет загрузку версий, библиотек и ассетов в России"
+          >
+            <select
+              value={settings.downloadMirror}
+              onChange={(event) =>
+                void updateSettings({
+                  downloadMirror: event.target.value === 'bmclapi' ? 'bmclapi' : 'official'
+                })
+              }
+            >
+              <option value="official">Официальные серверы Mojang</option>
+              <option value="bmclapi">BMCLAPI (зеркало)</option>
+            </select>
+          </Row>
+          <Row
+            label="Прокси"
+            hint="HTTP-прокси для всех загрузок. Пусто — подключаться напрямую"
+            stacked
+          >
+            <div className="inline-input">
+              <input
+                className="text-input mono"
+                value={proxyDraft}
+                onChange={(event) => setProxyDraft(event.target.value)}
+                onBlur={commitProxy}
+                placeholder="http://127.0.0.1:1080"
+                spellCheck={false}
+              />
+              <Button variant="ghost" className="btn-small" onClick={commitProxy}>
+                Сохранить
+              </Button>
+            </div>
+          </Row>
+          <div className="about-note">
+            <Icon name="download" size={15} />
+            Загрузки идут параллельно, недокачиваются после обрыва и проверяются по SHA-1. Если
+            зеркало недоступно, лаунчер автоматически вернётся к официальному серверу.
+          </div>
+        </Section>
+
+        <Section
+          title="Импорт из других лаунчеров"
+          subtitle="Перенос сборок, миров и аккаунтов"
+          icon={<Icon name="download" size={19} />}
+          className="settings-wide"
+        >
+          <Row
+            label="Ванильный .minecraft"
+            hint={scan?.vanilla.gameDir ?? 'Стандартная папка Minecraft'}
+          >
+            {scan?.vanilla.isCurrent ? (
+              <Badge tone="accent">уже используется</Badge>
+            ) : (
+              <Button
+                variant="soft"
+                className="btn-small"
+                disabled={!scan?.vanilla.exists}
+                onClick={() => void useVanilla()}
+              >
+                Использовать эту папку
+              </Button>
+            )}
+          </Row>
+
+          <div className="import-head">
+            <div>
+              <strong>Сборки других лаунчеров</strong>
+              <span>Prism, CurseForge, ATLauncher, GDLauncher — подключаются на месте, без копирования</span>
+            </div>
+            <Button
+              variant="ghost"
+              className="btn-small"
+              icon="refresh"
+              loading={scanning}
+              onClick={() => void runScan()}
+            >
+              Обновить
+            </Button>
+          </div>
+
+          {scanning && !scan ? (
+            <div className="java-empty">
+              <Spinner size={16} /> Ищем установленные лаунчеры…
+            </div>
+          ) : null}
+
+          {scan && scan.candidates.length === 0 ? (
+            <div className="java-empty">Других сборок не найдено</div>
+          ) : null}
+
+          <div className="import-list">
+            {scan?.candidates.map((candidate) => (
+              <div className="import-item" key={candidate.id}>
+                <span className="import-icon">
+                  <Icon name="gamepad" size={18} />
+                </span>
+                <div className="import-text">
+                  <strong>{candidate.name}</strong>
+                  <span>
+                    {candidate.launcher}
+                    {candidate.mcVersion ? ` · Minecraft ${candidate.mcVersion}` : ''} ·{' '}
+                    {candidate.modsCount} модов
+                    {candidate.hasSaves ? ' · есть миры' : ''}
+                  </span>
+                </div>
+                <Button
+                  variant="soft"
+                  className="btn-small"
+                  loading={importing === candidate.id}
+                  onClick={() => openConnect(candidate)}
+                >
+                  Подключить
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <Row
+            label="Аккаунты"
+            hint="Имена из launcher_profiles.json. Токены других лаунчеров перенести нельзя"
+          >
+            <Button variant="soft" className="btn-small" onClick={() => void importAccounts()}>
+              Импортировать офлайн-аккаунты
+            </Button>
+          </Row>
+        </Section>
+
+        <Section
           title="О системе"
           subtitle="Диагностика и версии"
           icon={<Icon name="info" size={19} />}
@@ -484,6 +727,59 @@ export function SettingsPage(): ReactNode {
           </div>
         </Section>
       </div>
+
+      <Modal
+        open={connectTarget !== null}
+        icon="download"
+        title="Подключить сборку"
+        subtitle={
+          connectTarget
+            ? `${connectTarget.launcher} · ${connectTarget.modsCount} модов · папка останется на месте`
+            : undefined
+        }
+        dismissable={importing === null}
+        onClose={() => setConnectTarget(null)}
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => setConnectTarget(null)}
+              disabled={importing !== null}
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="primary"
+              loading={importing === connectTarget?.id}
+              onClick={() => void connectImport()}
+            >
+              Подключить
+            </Button>
+          </>
+        }
+      >
+        <div className="form-grid">
+          <Field label="Название в лаунчере" wide>
+            <input
+              value={connectName}
+              maxLength={48}
+              onChange={(event) => setConnectName(event.target.value)}
+            />
+          </Field>
+          <Field
+            label="Версия Minecraft"
+            wide
+            hint="Которая установлена в Cozy. Сборка использует общие файлы версии."
+          >
+            <input
+              value={connectVersion}
+              placeholder="1.21.4"
+              spellCheck={false}
+              onChange={(event) => setConnectVersion(event.target.value)}
+            />
+          </Field>
+        </div>
+      </Modal>
     </div>
   )
 }

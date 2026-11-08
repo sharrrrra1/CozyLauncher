@@ -12,6 +12,7 @@ import type {
   Account,
   AccentName,
   AuthProgress,
+  CrashInfo,
   FeaturedVersion,
   InstallPhase,
   InstallProgress,
@@ -50,6 +51,7 @@ interface AppContextValue {
   toasts: ToastItem[]
   authProgress: AuthProgress | null
   authBusy: boolean
+  crash: CrashInfo | null
   selectedVersion: string
   accent: AccentName
   updateSettings: (patch: Partial<Settings>) => Promise<void>
@@ -60,6 +62,8 @@ interface AppContextValue {
   cancelInstall: (id: string) => Promise<void>
   removeVersion: (id: string) => Promise<void>
   launch: (versionId?: string) => Promise<void>
+  launchInstance: (instanceId: string, safeMode?: boolean) => Promise<void>
+  dismissCrash: () => void
   stop: () => Promise<void>
   refreshAccounts: () => Promise<void>
   selectAccount: (id: string) => Promise<void>
@@ -94,6 +98,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const [authProgress, setAuthProgress] = useState<AuthProgress | null>(null)
   const [authBusy, setAuthBusy] = useState(false)
+  const [crash, setCrash] = useState<CrashInfo | null>(null)
 
   const installPhases = useRef<Record<string, InstallPhase>>({})
   const toastTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
@@ -229,6 +234,11 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       })
     })
 
+    const offCrash = api.launch.onCrash((info) => {
+      setCrash(info)
+      setConsoleOpen(false)
+    })
+
     const offAuth = api.accounts.onAuth((progress) => {
       setAuthProgress(progress)
     })
@@ -237,6 +247,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       offProgress()
       offState()
       offLog()
+      offCrash()
       offAuth()
     }
   }, [refreshStatuses, toast])
@@ -301,6 +312,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       }
       setLogs([])
       setConsoleOpen(true)
+      setCrash(null)
       try {
         await api.launch.start(id)
       } catch {
@@ -309,6 +321,22 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
     },
     [settings, featured, updateSettings]
   )
+
+  const launchInstance = useCallback(
+    async (instanceId: string, safeMode = false) => {
+      setLogs([])
+      setConsoleOpen(true)
+      setCrash(null)
+      try {
+        await api.instances.launch(instanceId, safeMode)
+      } catch (error) {
+        toast('error', 'Не удалось запустить сборку', formatError(error))
+      }
+    },
+    [toast]
+  )
+
+  const dismissCrash = useCallback(() => setCrash(null), [])
 
   const stop = useCallback(async () => {
     try {
@@ -421,6 +449,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       toasts,
       authProgress,
       authBusy,
+      crash,
       selectedVersion,
       accent,
       updateSettings,
@@ -431,6 +460,8 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       cancelInstall,
       removeVersion,
       launch,
+      launchInstance,
+      dismissCrash,
       stop,
       refreshAccounts,
       selectAccount,
@@ -460,6 +491,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       toasts,
       authProgress,
       authBusy,
+      crash,
       selectedVersion,
       accent,
       updateSettings,
@@ -470,6 +502,8 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       cancelInstall,
       removeVersion,
       launch,
+      launchInstance,
+      dismissCrash,
       stop,
       refreshAccounts,
       selectAccount,

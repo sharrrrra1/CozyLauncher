@@ -228,14 +228,16 @@ export function mapJavaProgressToInstall(
 
 export async function ensureJava(
   version: VersionJson,
-  onProgress?: (progress: JavaProgress) => void
+  onProgress?: (progress: JavaProgress) => void,
+  override?: { javaPath?: string }
 ): Promise<JavaInfo> {
   const required = version.javaVersion?.majorVersion ?? 8
   const component = version.javaVersion?.component ?? 'jre-legacy'
   const settings = getSettings()
+  const customPath = override?.javaPath?.trim() || (settings.javaMode === 'custom' ? settings.javaPath : '')
 
-  if (settings.javaMode === 'custom' && settings.javaPath) {
-    const custom = probeJava(settings.javaPath)
+  if (customPath) {
+    const custom = probeJava(customPath)
     if (!custom) throw new Error('Указанная Java не найдена или не запускается')
     if (custom.major < required) {
       throw new Error(

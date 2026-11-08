@@ -5,12 +5,21 @@ import { useApp } from '../state/AppContext'
 import { formatBytes, api } from '../lib/api'
 import { McSprite } from './McSprite'
 
-export type PageId = 'home' | 'versions' | 'mods' | 'accounts' | 'settings'
+export type PageId =
+  | 'home'
+  | 'versions'
+  | 'instances'
+  | 'mods'
+  | 'servers'
+  | 'accounts'
+  | 'settings'
 
 const NAV: { id: PageId; label: string; icon: IconName }[] = [
   { id: 'home', label: 'Главная', icon: 'home' },
   { id: 'versions', label: 'Версии', icon: 'versions' },
+  { id: 'instances', label: 'Сборки', icon: 'gamepad' },
   { id: 'mods', label: 'Моды', icon: 'sparkles' },
+  { id: 'servers', label: 'Серверы', icon: 'globe' },
   { id: 'accounts', label: 'Аккаунты', icon: 'user' },
   { id: 'settings', label: 'Настройки', icon: 'settings' }
 ]

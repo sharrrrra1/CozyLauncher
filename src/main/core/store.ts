@@ -48,7 +48,9 @@ export function defaultSettings(): Settings {
     closeOnLaunch: false,
     msClientId: '00000000402b5328',
     lastVersion: '',
-    lastAccountId: ''
+    lastAccountId: '',
+    downloadMirror: 'official',
+    proxyUrl: ''
   }
 }
 
@@ -82,7 +84,9 @@ function sanitizeSettings(raw: Partial<Settings>): Settings {
     gameDir: merged.gameDir.trim() || defaults.gameDir,
     accent,
     msClientId: merged.msClientId.trim() || defaults.msClientId,
-    jvmArgs: merged.jvmArgs ?? ''
+    jvmArgs: merged.jvmArgs ?? '',
+    downloadMirror: merged.downloadMirror === 'bmclapi' ? 'bmclapi' : 'official',
+    proxyUrl: (merged.proxyUrl ?? '').trim()
   }
 }
 

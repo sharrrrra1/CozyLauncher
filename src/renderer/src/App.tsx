@@ -4,16 +4,19 @@ import { TitleBar } from './components/TitleBar'
 import { Sidebar, type PageId } from './components/Sidebar'
 import { ConsoleDrawer } from './components/ConsoleDrawer'
 import { Toasts } from './components/Toasts'
+import { CrashModal } from './components/CrashModal'
 import { HomePage } from './pages/HomePage'
 import { VersionsPage } from './pages/VersionsPage'
+import { InstancesPage } from './pages/InstancesPage'
 import { ModsPage } from './pages/ModsPage'
+import { ServersPage } from './pages/ServersPage'
 import { AccountsPage } from './pages/AccountsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { LogoMark } from './components/Stickers'
 import { McSprite } from './components/McSprite'
 import { Spinner } from './components/ui'
 
-const PAGES: PageId[] = ['home', 'versions', 'mods', 'accounts', 'settings']
+const PAGES: PageId[] = ['home', 'versions', 'instances', 'mods', 'servers', 'accounts', 'settings']
 
 function pageFromHash(): PageId {
   const raw = window.location.hash.replace(/^#\/?/, '')
@@ -92,7 +95,9 @@ export function App(): ReactNode {
             <div className="page-swap" key={page}>
               {page === 'home' ? <HomePage onNavigate={navigate} /> : null}
               {page === 'versions' ? <VersionsPage /> : null}
+              {page === 'instances' ? <InstancesPage /> : null}
               {page === 'mods' ? <ModsPage /> : null}
+              {page === 'servers' ? <ServersPage /> : null}
               {page === 'accounts' ? <AccountsPage /> : null}
               {page === 'settings' ? <SettingsPage /> : null}
             </div>
@@ -102,6 +107,7 @@ export function App(): ReactNode {
         </main>
       </div>
       <Toasts />
+      <CrashModal />
     </div>
   )
 }
