@@ -236,7 +236,7 @@ export function ServersPage(): ReactNode {
               <Badge tone="warm">закреплён</Badge>
               {config.ip ? pingLabel(configStatus) : <Badge tone="neutral">скоро</Badge>}
             </div>
-            <p>{config.subtitle || 'Официальный сервер Cozy Launcher'}</p>
+            <p>{config.subtitle || 'Официальный сервер JorneyMC'}</p>
             <div className="server-meta">
               {config.ip ? <span>{config.ip}:{config.port}</span> : <span>Адрес появится к открытию</span>}
               {configStatus?.version ? <span>{configStatus.version}</span> : null}

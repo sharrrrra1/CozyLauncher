@@ -1,0 +1,578 @@
+/* ============================================================
+   JourneyMC — дизайн «Aurora»: светлое стекло, живые градиенты
+   Активируется через :root[data-design='aurora']
+   ============================================================ */
+
+:root[data-design='aurora'] {
+  --bg-0: #e8ecf5;
+  --bg-1: #eef1f8;
+  --bg-2: #f4f6fb;
+  --bg-3: #ffffff;
+
+  --panel: rgba(255, 255, 255, 0.6);
+  --panel-solid: #f6f8fc;
+  --panel-raised: rgba(255, 255, 255, 0.82);
+  --line: rgba(35, 48, 86, 0.1);
+  --line-strong: rgba(35, 48, 86, 0.18);
+  --line-input: rgba(35, 48, 86, 0.16);
+
+  --text: #1c2438;
+  --text-dim: #3d4763;
+  --muted: #66708c;
+  --muted-2: #98a0b8;
+
+  --warm: #d9870b;
+  --info: #2f7fe0;
+  --rose: #e0497a;
+
+  --accent: #6a5cff;
+  --accent-2: #00c9a7;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(106, 92, 255, 0.12);
+  --accent-softer: rgba(106, 92, 255, 0.06);
+  --accent-line: rgba(106, 92, 255, 0.35);
+  --accent-glow: rgba(106, 92, 255, 0.28);
+
+  --radius-lg: 28px;
+  --radius: 20px;
+  --radius-sm: 14px;
+  --radius-xs: 10px;
+
+  --shadow-lg: 0 30px 70px rgba(70, 85, 160, 0.2);
+  --shadow: 0 18px 40px rgba(70, 85, 160, 0.14);
+  --shadow-soft: 0 12px 34px rgba(70, 85, 160, 0.12);
+  --shadow-card: 0 18px 46px rgba(70, 85, 160, 0.16);
+  --shadow-glow: 0 0 0 1px rgba(106, 92, 255, 0.25), 0 10px 30px rgba(106, 92, 255, 0.16);
+
+  --table-head: rgba(244, 246, 251, 0.92);
+  --console-bar-bg: rgba(244, 246, 251, 0.92);
+  --veil: 255, 255, 255;
+}
+
+/* ---------- Фон: дрейфующая аврора ---------- */
+
+:root[data-design='aurora'] .app {
+  background: linear-gradient(160deg, #eef1f8 0%, #e8ecf5 50%, #e4e9f4 100%);
+}
+
+:root[data-design='aurora'] .app::before {
+  inset: -20%;
+  opacity: 0.55;
+  background-image:
+    radial-gradient(42% 38% at 22% 24%, rgba(0, 201, 167, 0.35), transparent 70%),
+    radial-gradient(40% 42% at 78% 18%, rgba(106, 92, 255, 0.32), transparent 70%),
+    radial-gradient(46% 40% at 62% 82%, rgba(255, 178, 102, 0.28), transparent 70%),
+    radial-gradient(38% 36% at 18% 78%, rgba(124, 198, 255, 0.3), transparent 70%);
+  background-size: 100% 100%;
+  filter: blur(70px);
+  mask-image: none;
+  -webkit-mask-image: none;
+  animation: auroraDrift 30s ease-in-out infinite alternate;
+}
+
+:root[data-design='aurora'] .app::after {
+  content: '';
+  position: fixed;
+  inset: -25%;
+  pointer-events: none;
+  background-image:
+    radial-gradient(36% 34% at 68% 30%, rgba(255, 143, 177, 0.2), transparent 70%),
+    radial-gradient(40% 38% at 30% 60%, rgba(0, 201, 167, 0.22), transparent 70%);
+  filter: blur(90px);
+  animation: auroraDrift 38s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes auroraDrift {
+  0% { transform: translate3d(-3%, -2%, 0) rotate(-2deg) scale(1); }
+  50% { transform: translate3d(3%, 2%, 0) rotate(2deg) scale(1.06); }
+  100% { transform: translate3d(-2%, 3%, 0) rotate(-1deg) scale(1.03); }
+}
+
+@keyframes auroraTextFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes auroraPageIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes auroraSheen {
+  from { transform: translateX(-130%) skewX(-18deg); }
+  to { transform: translateX(230%) skewX(-18deg); }
+}
+
+/* ---------- Каркас: матовое стекло ---------- */
+
+:root[data-design='aurora'] .app-body {
+  z-index: 2;
+}
+
+:root[data-design='aurora'] .titlebar {
+  background: rgba(244, 246, 251, 0.72);
+  border-bottom-color: rgba(35, 48, 86, 0.08);
+}
+
+:root[data-design='aurora'] .titlebar-btn {
+  color: var(--muted);
+}
+
+:root[data-design='aurora'] .titlebar-btn:hover {
+  background: rgba(35, 48, 86, 0.07);
+  color: var(--text);
+}
+
+:root[data-design='aurora'] .titlebar-status {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: var(--line);
+  color: var(--text-dim);
+}
+
+:root[data-design='aurora'] .logo-mark {
+  filter: drop-shadow(0 3px 10px rgba(0, 160, 130, 0.3));
+}
+
+:root[data-design='aurora'] .sidebar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(244, 246, 251, 0.7));
+  border-right-color: rgba(35, 48, 86, 0.08);
+}
+
+:root[data-design='aurora'] .sidebar-glow {
+  background: radial-gradient(circle, rgba(0, 201, 167, 0.14), transparent 68%);
+}
+
+:root[data-design='aurora'] .nav-item {
+  border-radius: 14px;
+}
+
+:root[data-design='aurora'] .nav-item:hover {
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--text);
+}
+
+:root[data-design='aurora'] .nav-item.is-active,
+:root[data-design='aurora'] .nav-item[aria-current='page'] {
+  background: linear-gradient(100deg, rgba(106, 92, 255, 0.12), rgba(0, 201, 167, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(106, 92, 255, 0.28), 0 8px 20px rgba(106, 92, 255, 0.1);
+}
+
+:root[data-design='aurora'] .nav-icon {
+  background: rgba(35, 48, 86, 0.05);
+}
+
+:root[data-design='aurora'] .page-swap {
+  animation: auroraPageIn 0.42s cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+
+/* ---------- Типографика ---------- */
+
+:root[data-design='aurora'] .hero-title-version {
+  background: linear-gradient(100deg, #6a5cff 10%, #00c9a7 55%, #6a5cff 95%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: auroraTextFlow 8s ease-in-out infinite;
+}
+
+:root[data-design='aurora'] .hero-title-small {
+  color: var(--accent);
+}
+
+/* ---------- Поверхности ---------- */
+
+:root[data-design='aurora'] .hero {
+  border-color: rgba(255, 255, 255, 0.7);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(244, 246, 251, 0.6)),
+    radial-gradient(600px 300px at 12% 0%, rgba(106, 92, 255, 0.1), transparent 70%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 24px 60px rgba(70, 85, 160, 0.16);
+}
+
+:root[data-design='aurora'] .hero::after {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+:root[data-design='aurora'] .hero-subtitle,
+:root[data-design='aurora'] .hero-hint {
+  color: var(--muted);
+}
+
+:root[data-design='aurora'] .stat-card,
+:root[data-design='aurora'] .version-card,
+:root[data-design='aurora'] .settings-card,
+:root[data-design='aurora'] .account-tile,
+:root[data-design='aurora'] .community,
+:root[data-design='aurora'] .instance-card {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 10px 30px rgba(70, 85, 160, 0.1);
+}
+
+:root[data-design='aurora'] .stat-card:hover,
+:root[data-design='aurora'] .version-card:hover,
+:root[data-design='aurora'] .settings-card:hover,
+:root[data-design='aurora'] .account-tile:hover {
+  border-color: rgba(106, 92, 255, 0.35);
+  box-shadow: 0 20px 48px rgba(106, 92, 255, 0.16);
+}
+
+:root[data-design='aurora'] .instance-card {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.8), rgba(244, 246, 251, 0.6));
+}
+
+:root[data-design='aurora'] .modal {
+  background: linear-gradient(170deg, rgba(255, 255, 255, 0.96), rgba(244, 246, 251, 0.98));
+  border-color: rgba(35, 48, 86, 0.12);
+}
+
+:root[data-design='aurora'] .modal-foot {
+  background: rgba(35, 48, 86, 0.04);
+}
+
+:root[data-design='aurora'] .modal-list-row {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+:root[data-design='aurora'] .modal-list-row:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+:root[data-design='aurora'] .modal-check {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+:root[data-design='aurora'] .toast {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(35, 48, 86, 0.12);
+}
+
+:root[data-design='aurora'] .account-type-pin {
+  background: rgba(240, 184, 102, 0.14);
+  border-color: rgba(217, 135, 11, 0.28);
+  box-shadow: none;
+}
+
+:root[data-design='aurora'] .account-type-pin.is-ms {
+  background: rgba(47, 127, 224, 0.12);
+  border-color: rgba(47, 127, 224, 0.26);
+}
+
+/* ---------- Кнопки ---------- */
+
+:root[data-design='aurora'] .btn-primary {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #6a5cff 0%, #00c9a7 100%);
+  box-shadow: 0 10px 26px rgba(106, 92, 255, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+:root[data-design='aurora'] .btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+  animation: auroraSheen 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+:root[data-design='aurora'] .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 14px 34px rgba(106, 92, 255, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  filter: brightness(1.05);
+}
+
+:root[data-design='aurora'] .btn-soft {
+  background: rgba(255, 255, 255, 0.65);
+  border-color: rgba(35, 48, 86, 0.12);
+}
+
+:root[data-design='aurora'] .btn-soft:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(35, 48, 86, 0.2);
+}
+
+:root[data-design='aurora'] .btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+:root[data-design='aurora'] .btn-danger {
+  color: #c22a48;
+  background: rgba(224, 73, 122, 0.1);
+  border-color: rgba(224, 73, 122, 0.3);
+}
+
+:root[data-design='aurora'] .btn-danger:hover:not(:disabled) {
+  background: rgba(224, 73, 122, 0.18);
+}
+
+:root[data-design='aurora'] .icon-btn:hover:not(:disabled) {
+  background: rgba(35, 48, 86, 0.07);
+}
+
+/* ---------- Формы ---------- */
+
+:root[data-design='aurora'] .field input,
+:root[data-design='aurora'] .form input,
+:root[data-design='aurora'] .text-input,
+:root[data-design='aurora'] .search input,
+:root[data-design='aurora'] .resolution-inputs input {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text);
+}
+
+:root[data-design='aurora'] .field input:focus,
+:root[data-design='aurora'] .form input:focus,
+:root[data-design='aurora'] .text-input:focus,
+:root[data-design='aurora'] .search input:focus {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 3px rgba(106, 92, 255, 0.14);
+}
+
+:root[data-design='aurora'] .field select,
+:root[data-design='aurora'] .select-inline {
+  background-color: rgba(255, 255, 255, 0.7);
+  color: var(--text);
+}
+
+:root[data-design='aurora'] .segmented {
+  background: rgba(35, 48, 86, 0.05);
+}
+
+:root[data-design='aurora'] .radio-card {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+:root[data-design='aurora'] .badge-neutral {
+  background: rgba(35, 48, 86, 0.06);
+}
+
+:root[data-design='aurora'] .badge-warm {
+  background: rgba(217, 135, 11, 0.1);
+  border-color: rgba(217, 135, 11, 0.3);
+}
+
+:root[data-design='aurora'] .badge-info {
+  background: rgba(47, 127, 224, 0.1);
+  border-color: rgba(47, 127, 224, 0.28);
+}
+
+:root[data-design='aurora'] .badge-rose {
+  background: rgba(224, 73, 122, 0.1);
+  border-color: rgba(224, 73, 122, 0.28);
+}
+
+:root[data-design='aurora'] .skeleton {
+  background: linear-gradient(90deg, rgba(35, 48, 86, 0.05) 0%, rgba(35, 48, 86, 0.12) 50%, rgba(35, 48, 86, 0.05) 100%);
+  background-size: 200% 100%;
+}
+
+/* ---------- Точечные тёмные подложки → светлые ---------- */
+
+:root[data-design='aurora'] .account-hero {
+  background: rgba(var(--veil), 0.8);
+}
+
+/* Aurora overrides for bottom row components */
+:root[data-design='aurora'] .cozy-note {
+  border: 1px solid var(--veil-strong);
+  background: var(--veil);
+}
+
+:root[data-design='aurora'] .cozy-note::before {
+  background: linear-gradient(180deg, var(--veil), rgba(var(--veil), 0));
+}
+
+:root[data-design='aurora'] .cozy-note-icon {
+  background: rgba(var(--veil), 0.22);
+}
+
+:root[data-design='aurora'] .server-promo {
+  background: linear-gradient(135deg, rgba(var(--veil), 0.95), rgba(var(--veil), 0.7));
+}
+
+:root[data-design='aurora'] .server-promo-copy h3,
+:root[data-design='aurora'] .server-promo-copy p {
+  color: var(--text);
+}
+
+:root[data-design='aurora'] .server-promo-soon {
+  color: var(--muted);
+  background: rgba(var(--veil), 0.6);
+  border: 1px solid var(--veil-strong);
+}
+
+:root[data-design='aurora'] .update-banner {
+  background: rgba(var(--veil), 0.9);
+  border: 1px solid var(--veil-strong);
+}
+
+:root[data-design='aurora'] .update-banner strong,
+:root[data-design='aurora'] .update-banner p {
+  color: var(--text);
+}
+
+:root[data-design='aurora'] .link-action {
+  color: var(--accent);
+}
+
+:root[data-design='aurora'] .link-action:hover {
+  color: var(--accent-hover);
+}
+
+
+
+:root[data-design='aurora'] .hero-progress {
+  background: rgba(255, 255, 255, 0.65);
+}
+
+:root[data-design='aurora'] .account-hero-meta .mono {
+  background: rgba(255, 255, 255, 0.65);
+}
+
+:root[data-design='aurora'] .account-type-pin.is-ms {
+  background: rgba(47, 127, 224, 0.12);
+}
+
+:root[data-design='aurora'] .ms-flow-head {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+:root[data-design='aurora'] .import-item {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+:root[data-design='aurora'] .community-link {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+:root[data-design='aurora'] .community-link:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+/* ---------- Скроллбар и загрузка ---------- */
+
+:root[data-design='aurora'] ::-webkit-scrollbar-thumb {
+  background: rgba(35, 48, 86, 0.18);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+:root[data-design='aurora'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(35, 48, 86, 0.32);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+}
+
+:root[data-design='aurora'] .loading-stars {
+  --loading-star: 35, 48, 86;
+}
+
+:root[data-design='aurora'] .loading-name {
+  background: linear-gradient(90deg, #6a5cff, #00c9a7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+
+:root[data-design='aurora'] .loading-hint {
+  color: var(--muted);
+  text-shadow: none;
+}
+
+/* ============================================================
+   Структура и формы: мягкое стекло, pill-геометрия
+   Меняет геометрию всех компонентов, а не только цвет
+   ============================================================ */
+
+:root[data-design='aurora'] .btn,
+:root[data-design='aurora'] .btn-small {
+  border-radius: 999px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+:root[data-design='aurora'] .nav-item {
+  height: 44px;
+  border-radius: 999px;
+  padding: 0 14px;
+  font-weight: 700;
+}
+
+:root[data-design='aurora'] .nav-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+
+:root[data-design='aurora'] .page-heading h1 {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+:root[data-design='aurora'] .stat-card,
+:root[data-design='aurora'] .version-card,
+:root[data-design='aurora'] .settings-card,
+:root[data-design='aurora'] .account-tile,
+:root[data-design='aurora'] .instance-card,
+:root[data-design='aurora'] .community {
+  border-radius: 24px;
+}
+
+:root[data-design='aurora'] .field input,
+:root[data-design='aurora'] .form input,
+:root[data-design='aurora'] .text-input,
+:root[data-design='aurora'] .field select,
+:root[data-design='aurora'] .select-inline {
+  border-radius: 999px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+:root[data-design='aurora'] .search {
+  border-radius: 999px;
+}
+
+:root[data-design='aurora'] .segmented {
+  border-radius: 999px;
+  padding: 4px;
+}
+
+:root[data-design='aurora'] .segment {
+  border-radius: 999px;
+}
+
+:root[data-design='aurora'] .badge {
+  border-radius: 999px;
+}
+
+:root[data-design='aurora'] .version-table {
+  border-radius: 24px;
+}
+
+:root[data-design='aurora'] .modal {
+  border-radius: 28px;
+}
+
+:root[data-design='aurora'] .icon-btn {
+  border-radius: 50%;
+}
+
+:root[data-design='aurora'] .loading-xp {
+  border-radius: 999px;
+  background: rgba(35, 48, 86, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(35, 48, 86, 0.12);
+}
+
+:root[data-design='aurora'] .loading-step-box {
+  border-radius: 50%;
+}

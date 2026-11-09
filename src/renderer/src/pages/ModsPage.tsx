@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useApp } from '../state/AppContext'
 import { api, formatBytes, formatCount, formatError, formatSpeed } from '../lib/api'
-import { Button, Spinner, Badge, ProgressBar } from '../components/ui'
+import { Button, Spinner, Badge, ProgressBar, Modal } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { McSprite } from '../components/McSprite'
 import type {
@@ -288,7 +288,7 @@ export function ModsPage(): ReactNode {
       </div>
 
       {statusKnown && !installed ? (
-        <section className="cozy-note" style={{ marginBottom: 18 }}>
+        <section className="cozy-note">
           <span className="cozy-note-icon">
             <McSprite kind="grass" size={32} />
           </span>
@@ -309,7 +309,7 @@ export function ModsPage(): ReactNode {
       {tab === 'catalog' ? (
         <>
           <form onSubmit={handleSearch} className="toolbar">
-            <div className="search" style={{ flex: 1 }}>
+            <div className="search flex-1">
               <Icon name="search" size={16} />
               <input
                 value={searchQuery}
@@ -331,7 +331,7 @@ export function ModsPage(): ReactNode {
             </Button>
           </form>
 
-          <div className="version-table">
+          <div className="version-table mods-table">
             <div className="table-head">
               <span />
               <span>Название мода</span>
@@ -362,7 +362,7 @@ export function ModsPage(): ReactNode {
                     <img
                       src={mod.iconUrl}
                       alt=""
-                      style={{ width: 32, height: 32, borderRadius: 6 }}
+                      className="row-thumb-img"
                     />
                   ) : (
                     <Icon name="sparkles" size={18} />
@@ -373,8 +373,7 @@ export function ModsPage(): ReactNode {
                   <span>{mod.slug}</span>
                 </span>
                 <span
-                  className="row-date"
-                  style={{ flex: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  className="row-date flex-2 overflow-hidden text-ellipsis whitespace-nowrap"
                 >
                   {mod.description}
                 </span>
@@ -396,7 +395,7 @@ export function ModsPage(): ReactNode {
         </>
       ) : (
         <>
-          <div className="toolbar" style={{ justifyContent: 'flex-end' }}>
+          <div className="toolbar justify-end">
             <Button
               variant="ghost"
               icon="download"
@@ -426,7 +425,7 @@ export function ModsPage(): ReactNode {
             ) : null}
           </div>
 
-          <div className="version-table">
+          <div className="version-table mods-table">
             <div className="table-head">
               <span />
               <span>Имя файла</span>
@@ -452,7 +451,7 @@ export function ModsPage(): ReactNode {
                   </span>
                   <span className="row-name">
                     <strong>{mod.title ?? mod.filename}</strong>
-                    <span style={{ fontSize: 11, opacity: 0.7 }}>{mod.filename}</span>
+                    <span className="row-sub">{mod.filename}</span>
                   </span>
                   <span className="row-date">
                     {update ? (
@@ -486,19 +485,7 @@ export function ModsPage(): ReactNode {
           </div>
 
           {logs.length > 0 ? (
-            <div
-              style={{
-                marginTop: 16,
-                background: '#000',
-                color: '#7ee787',
-                padding: 10,
-                borderRadius: 8,
-                fontSize: 11,
-                fontFamily: 'monospace',
-                maxHeight: 140,
-                overflowY: 'auto'
-              }}
-            >
+            <div className="mods-log">
               {logs.slice(-40).map((line, index) => (
                 <div key={index}>{line}</div>
               ))}
@@ -507,161 +494,150 @@ export function ModsPage(): ReactNode {
         </>
       )}
 
-      {selectedMod ? (
-        <div className="modal-backdrop" onClick={() => setSelectedMod(null)}>
-          <div
-            className="modal-card"
-            onClick={(event) => event.stopPropagation()}
-            style={{ maxWidth: 640, width: '100%', background: 'var(--panel)', padding: 24, borderRadius: 12, border: '1px solid var(--border)' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3>Версии мода: {selectedMod.title}</h3>
-              <button className="icon-btn" onClick={() => setSelectedMod(null)}>
-                <Icon name="x" size={16} />
-              </button>
-            </div>
-
-            {versionsLoading ? (
-              <div style={{ textAlign: 'center', padding: 32 }}>
-                <Spinner size={24} />
-                <p style={{ marginTop: 8 }}>Загружаем доступные версии…</p>
-              </div>
-            ) : modVersionsList.length === 0 ? (
-              <p style={{ textAlign: 'center', padding: 24 }}>
-                Для версии {gameVersion} подходящих Fabric-версий мода не найдено.
-              </p>
-            ) : (
-              <div style={{ maxHeight: 380, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {modVersionsList.map((version) => (
-                  <div
-                    key={version.versionId}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}
-                  >
-                    <div>
-                      <strong>{version.versionNumber}</strong>
-                      <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                        {version.loaders.join(', ')} · {formatBytes(version.size)}
-                      </div>
-                    </div>
-                    <Button
-                      variant="primary"
-                      className="btn-small"
-                      disabled={previewingVersionId === version.versionId}
-                      onClick={() => void openPreview(version)}
-                    >
-                      {previewingVersionId === version.versionId ? (
-                        <Spinner size={12} />
-                      ) : (
-                        'Установить с зависимостями'
-                      )}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
+      <Modal
+        open={selectedMod !== null}
+        icon="sparkles"
+        width={640}
+        title={selectedMod ? `Версии мода: ${selectedMod.title}` : 'Версии мода'}
+        subtitle={`Только сборки Fabric для Minecraft ${gameVersion}`}
+        onClose={() => setSelectedMod(null)}
+      >
+        {versionsLoading ? (
+          <div className="modal-empty">
+            <Spinner size={24} />
+            <p>Загружаем доступные версии…</p>
           </div>
-        </div>
-      ) : null}
+        ) : modVersionsList.length === 0 ? (
+          <div className="modal-empty">
+            <p>Для версии {gameVersion} подходящих Fabric-версий мода не найдено.</p>
+          </div>
+        ) : (
+          <div className="modal-list">
+            {modVersionsList.map((version) => (
+              <div key={version.versionId} className="modal-list-row">
+                <div className="modal-list-text">
+                  <strong>{version.versionNumber}</strong>
+                  <span>
+                    {version.loaders.join(', ')} · {formatBytes(version.size)}
+                  </span>
+                </div>
+                <Button
+                  variant="primary"
+                  className="btn-small"
+                  loading={previewingVersionId === version.versionId}
+                  disabled={previewingVersionId === version.versionId}
+                  onClick={() => void openPreview(version)}
+                >
+                  Установить с зависимостями
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
 
-      {pending ? (
-        <div className="modal-backdrop" onClick={() => !installing && setPending(null)}>
-          <div
-            className="modal-card"
-            onClick={(event) => event.stopPropagation()}
-            style={{ maxWidth: 720, width: '100%', background: 'var(--panel)', padding: 24, borderRadius: 12, border: '1px solid var(--border)' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3>Установка: {pending.mod.title}</h3>
-              <button className="icon-btn" disabled={installing} onClick={() => setPending(null)}>
-                <Icon name="x" size={16} />
-              </button>
-            </div>
-
-            <p style={{ marginTop: 0, color: 'var(--text-dim)' }}>
-              Будет скачано {pending.plan.files.length}{' '}
-              {pending.plan.files.length === 1 ? 'файл' : 'файлов'}, всего{' '}
-              {formatBytes(pending.plan.totalSize)}. Файлы сверяются по SHA-1 и SHA-512.
-            </p>
-
+      <Modal
+        open={pending !== null}
+        icon="download"
+        width={720}
+        title={pending ? `Установка: ${pending.mod.title}` : 'Установка'}
+        subtitle={
+          pending
+            ? `Будет скачано ${pending.plan.files.length} ${
+                pending.plan.files.length === 1 ? 'файл' : 'файлов'
+              }, всего ${formatBytes(pending.plan.totalSize)}. Файлы сверяются по SHA-1 и SHA-512.`
+            : undefined
+        }
+        dismissable={!installing}
+        onClose={() => setPending(null)}
+        footer={
+          <>
+            <Button variant="ghost" disabled={installing} onClick={() => setPending(null)}>
+              Отмена
+            </Button>
+            <Button
+              variant="primary"
+              icon="download"
+              loading={installing}
+              disabled={installing || (pending?.plan.blocked.length ?? 0) > 0}
+              onClick={() => void confirmInstall()}
+            >
+              Скачать и установить
+            </Button>
+          </>
+        }
+      >
+        {pending ? (
+          <>
             {pending.plan.blocked.length > 0 ? (
-              <div style={{ background: 'rgba(255,90,90,0.12)', border: '1px solid rgba(255,90,90,0.4)', padding: 12, borderRadius: 8, marginBottom: 12 }}>
+              <div className="modal-alert">
                 {pending.plan.blocked.map((reason, index) => (
-                  <div key={index} style={{ color: '#ff8b8b', fontSize: 13 }}>{reason}</div>
+                  <div key={index}>{reason}</div>
                 ))}
               </div>
             ) : null}
 
-            <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="modal-list">
               {pending.plan.files.map((file) => (
-                <div key={`${file.projectId}-${file.versionId}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 10px', background: 'var(--bg)', borderRadius: 6 }}>
-                  <div>
-                    <strong style={{ fontSize: 13 }}>{file.title}</strong>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                <div key={`${file.projectId}-${file.versionId}`} className="modal-list-row is-plain">
+                  <div className="modal-list-text">
+                    <strong>{file.title}</strong>
+                    <span>
                       {file.versionNumber} · {file.reason}
-                    </div>
+                    </span>
                   </div>
-                  <span style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{formatBytes(file.size)}</span>
+                  <span className="modal-list-meta">{formatBytes(file.size)}</span>
                 </div>
               ))}
             </div>
 
             {pending.plan.optional.length > 0 ? (
-              <div style={{ marginTop: 12 }}>
-                <strong style={{ fontSize: 13 }}>Необязательные зависимости</strong>
+              <div className="modal-section">
+                <strong className="modal-section-title">Необязательные зависимости</strong>
                 {pending.plan.optional.map((option) => (
-                  <label key={option.projectId} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, fontSize: 13 }}>
+                  <label key={option.projectId} className="modal-check">
                     <input
                       type="checkbox"
                       checked={pending.optional.includes(option.projectId)}
                       disabled={installing}
                       onChange={() => void toggleOptional(option.projectId)}
                     />
-                    {option.title} {option.versionNumber} · {formatBytes(option.size)}
+                    <span>
+                      {option.title} {option.versionNumber} · {formatBytes(option.size)}
+                    </span>
                   </label>
                 ))}
               </div>
             ) : null}
 
             {installing ? (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+              <div className="modal-progress">
+                <div className="modal-progress-head">
                   <span>{progress?.label ?? 'Готовим установку…'}</span>
                   <span>
-                    {percent}%
-                    {progress?.speed ? ` · ${formatSpeed(progress.speed)}` : ''}
+                    {percent}%{progress?.speed ? ` · ${formatSpeed(progress.speed)}` : ''}
                   </span>
                 </div>
                 <ProgressBar value={percent} height={6} animated />
-                {progress?.file ? (
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>{progress.file}</div>
-                ) : null}
+                {progress?.file ? <div className="modal-progress-file">{progress.file}</div> : null}
               </div>
             ) : null}
+          </>
+        ) : null}
+      </Modal>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
-              <Button variant="ghost" disabled={installing} onClick={() => setPending(null)}>
-                Отмена
-              </Button>
-              <Button
-                variant="primary"
-                icon="download"
-                disabled={installing || pending.plan.blocked.length > 0}
-                onClick={() => void confirmInstall()}
-              >
-                {installing ? <Spinner size={13} /> : 'Скачать и установить'}
-              </Button>
-            </div>
-          </div>
+      <Modal
+        open={installing && !pending}
+        title="Установка модов"
+        dismissable={false}
+        onClose={() => undefined}
+        width={420}
+      >
+        <div className="modal-empty">
+          <Spinner size={22} />
+          <p>Устанавливаем моды…</p>
         </div>
-      ) : null}
-
-      {installing && !pending ? (
-        <div className="modal-backdrop">
-          <div className="modal-card" style={{ background: 'var(--panel)', padding: 24, borderRadius: 12 }}>
-            <Spinner size={20} /> Устанавливаем моды…
-          </div>
-        </div>
-      ) : null}
+      </Modal>
     </div>
   )
 }

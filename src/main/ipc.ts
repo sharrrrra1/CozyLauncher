@@ -7,8 +7,11 @@ import type {
   AuthProgress,
   CrashInfo,
   CreateInstanceInput,
+  DiscordPresenceConfig,
+  GalleryScope,
   ImportCandidate,
   InstallProgress,
+  OptimizationContext,
   Settings
 } from '@shared/types'
 import {
@@ -71,6 +74,26 @@ import {
   updateServer
 } from './core/servers'
 import { getSettings, updateSettings } from './core/store'
+import { addPlaytime, getPlaytimeStats } from './core/stats'
+import { getSystemSpecs, recommendSettings } from './core/optimize'
+import {
+  copyScreenshot,
+  deleteScreenshot,
+  listScreenshots,
+  openScreenshotsFolder,
+  screenshotFull,
+  screenshotThumb
+} from './core/gallery'
+import {
+  applyPresenceConfig,
+  buildActivity,
+  clearPresenceActivity,
+  getPresenceConfig,
+  setPresenceActivity,
+  setPresenceEnabled,
+  shutdownPresence,
+  type DiscordActivityPayload
+} from './core/presence'
 
 function sendProgress(window: BrowserWindow | null, progress: InstallProgress): void {
   window?.webContents.send('versions:progress', progress)
@@ -102,17 +125,107 @@ function safeOn(channel: string, listener: (event: Electron.IpcMainEvent, ...arg
   ipcMain.on(channel, listener)
 }
 
+/**
+ * Учёт времени в игре.
+ * Держим сессию в памяти и раз в минуту сбрасываем дельту на диск — так даже
+ * жёсткий вылет лаунчера не съест больше минуты. Повторный 'running'
+ * игнорируем, иначе время начнёт двоиться.
+ */
+let playSessionKey: string | null = null
+let playSessionStartedAt = 0
+let playSessionFlushedAt = 0
+let playSessionTimer: NodeJS.Timeout | null = null
+/** Последняя активность — чтобы вернуть её, если Discord снова включили прямо в игре. */
+let activePresence: DiscordActivityPayload | null = null
+
+function flushPlaySession(now = Date.now()): void {
+  if (!playSessionKey) return
+  const delta = now - playSessionFlushedAt
+  if (delta <= 0) return
+  addPlaytime(playSessionKey, delta)
+  playSessionFlushedAt = now
+}
+
+function startPlaySession(instanceId?: string): boolean {
+  if (playSessionKey) return false
+  playSessionKey = instanceId ?? 'vanilla'
+  playSessionStartedAt = Date.now()
+  playSessionFlushedAt = playSessionStartedAt
+  playSessionTimer = setInterval(() => flushPlaySession(), 60_000)
+  playSessionTimer.unref?.()
+  return true
+}
+
+function stopPlaySession(): void {
+  if (!playSessionKey) return
+  flushPlaySession()
+  if (playSessionTimer) {
+    clearInterval(playSessionTimer)
+    playSessionTimer = null
+  }
+  playSessionKey = null
+  playSessionStartedAt = 0
+  playSessionFlushedAt = 0
+}
+
+/** Старый discord API присылал активность в «плоском» виде — переводим в наш payload. */
+function normalizeLegacyActivity(activity: any): DiscordActivityPayload | null {
+  if (!activity || typeof activity !== 'object') return null
+  const rawStart = Number(activity.startTimestamp)
+  const startedAt =
+    Number.isFinite(rawStart) && rawStart > 0
+      ? rawStart > 10_000_000_000
+        ? rawStart
+        : rawStart * 1000
+      : Date.now()
+  return {
+    details: typeof activity.details === 'string' ? activity.details : 'Играет в Minecraft',
+    state: typeof activity.state === 'string' ? activity.state : 'Minecraft',
+    timestamps: { start: Math.floor(startedAt / 1000) },
+    assets: {
+      large_image: typeof activity.largeImageKey === 'string' ? activity.largeImageKey : 'jorneymc',
+      large_text: typeof activity.largeImageText === 'string' ? activity.largeImageText : 'JorneyMC'
+    }
+  }
+}
+
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
   const launcher = new GameLauncher({
     onLog: (line) => getWindow()?.webContents.send('launch:log', line),
     onState: (state) => {
       const window = getWindow()
       window?.webContents.send('launch:state', state)
-      if (state.phase === 'running' && getSettings().closeOnLaunch) {
-        window?.hide()
+
+      if (state.phase === 'running') {
+        if (getSettings().closeOnLaunch) window?.hide()
+        // Повторный 'running' без остановки игнорируем — ни времени, ни presence.
+        if (startPlaySession(state.instanceId)) {
+          const instance = state.instanceId ? getInstance(state.instanceId) : null
+          activePresence = buildActivity({
+            instanceName: instance?.name,
+            versionId: state.versionId,
+            startedAt: playSessionStartedAt
+          })
+          setPresenceActivity(activePresence)
+        }
+      } else if (
+        state.phase === 'exited' ||
+        state.phase === 'stopped' ||
+        state.phase === 'error'
+      ) {
+        stopPlaySession()
+        activePresence = null
+        clearPresenceActivity()
       }
     },
     onCrash: (crash) => getWindow()?.webContents.send('launch:crash', crash)
+  })
+
+  setPresenceEnabled(getSettings().discordRpc)
+  app.once('before-quit', () => {
+    // Успеть записать последнюю минуту и аккуратно закрыть Discord pipe.
+    stopPlaySession()
+    shutdownPresence()
   })
 
   configureNetwork(getSettings().proxyUrl)
@@ -188,6 +301,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   safeHandle('settings:update', (_event, patch: Partial<Settings>) => {
     const updated = updateSettings(patch)
     if (patch.proxyUrl !== undefined) configureNetwork(updated.proxyUrl)
+    if (patch.discordRpc !== undefined) {
+      setPresenceEnabled(updated.discordRpc)
+      // Включили обратно прямо во время игры — возвращаем активность без перезапуска.
+      if (updated.discordRpc && activePresence) setPresenceActivity(activePresence)
+    }
     return updated
   })
   safeHandle('settings:choose-java', async () => {
@@ -462,7 +580,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'User-Agent': 'CozyLauncher/1.2.0'
+        'User-Agent': 'JourneyMC/1.2.0'
       },
       body: new URLSearchParams({ content: text }).toString(),
       signal: AbortSignal.timeout(25000)
@@ -527,4 +645,41 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     return dir
   })
   safeHandle('imports:accounts', () => importOfflineAccounts())
+
+  /* ---------- NEW FEATURES ---------- */
+  safeHandle('stats:get', () => getPlaytimeStats())
+  safeHandle('system:specs', () => getSystemSpecs())
+  safeHandle('system:optimize', (_event, context?: OptimizationContext) =>
+    recommendSettings(context ?? {})
+  )
+
+  /* ---------- SCREENSHOTS ---------- */
+  safeHandle('screenshots:list', (_event, scope: GalleryScope) => listScreenshots(scope))
+  safeHandle('screenshots:thumb', (_event, scope: GalleryScope, file: string) =>
+    screenshotThumb(scope, file)
+  )
+  safeHandle('screenshots:full', (_event, scope: GalleryScope, file: string) =>
+    screenshotFull(scope, file)
+  )
+  safeHandle('screenshots:copy', (_event, scope: GalleryScope, file: string) =>
+    copyScreenshot(scope, file)
+  )
+  safeHandle('screenshots:open-dir', (_event, scope: GalleryScope) => openScreenshotsFolder(scope))
+  safeHandle('screenshots:delete', (_event, scope: GalleryScope, file: string) => {
+    deleteScreenshot(scope, file)
+  })
+
+  /* ---------- DISCORD ---------- */
+  safeHandle('discord:config', () => getPresenceConfig())
+  safeHandle('discord:update-config', (_event, config: DiscordPresenceConfig) => {
+    applyPresenceConfig(config)
+    return getPresenceConfig()
+  })
+  safeHandle('discord:set-activity', (_event, activity: unknown) => {
+    const payload = normalizeLegacyActivity(activity)
+    if (payload) setPresenceActivity(payload)
+  })
+  safeHandle('discord:clear-activity', () => {
+    clearPresenceActivity()
+  })
 }

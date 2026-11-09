@@ -34,7 +34,7 @@ export interface DownloadOptions {
   mirror?: DownloadMirror
 }
 
-const USER_AGENT = 'CozyLauncher/1.2.0 (Minecraft launcher)'
+const USER_AGENT = 'JourneyMC/1.2.0 (Minecraft launcher)'
 const PROGRESS_INTERVAL = 120
 
 let configuredProxy = ''

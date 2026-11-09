@@ -329,7 +329,7 @@ export class GameLauncher {
         extraJvmArgs,
         classpath,
         nativesDir: natives,
-        launcherName: 'CozyLauncher',
+        launcherName: 'JorneyMC',
         launcherVersion: app.getVersion(),
         vars
       })

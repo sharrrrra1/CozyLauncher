@@ -12,35 +12,13 @@ import { ModsPage } from './pages/ModsPage'
 import { ServersPage } from './pages/ServersPage'
 import { AccountsPage } from './pages/AccountsPage'
 import { SettingsPage } from './pages/SettingsPage'
-import { LogoMark } from './components/Stickers'
-import { McSprite } from './components/McSprite'
-import { Spinner } from './components/ui'
+import { LoadingScreen } from './components/LoadingScreen'
 
 const PAGES: PageId[] = ['home', 'versions', 'instances', 'mods', 'servers', 'accounts', 'settings']
 
 function pageFromHash(): PageId {
   const raw = window.location.hash.replace(/^#\/?/, '')
   return (PAGES as string[]).includes(raw) ? (raw as PageId) : 'home'
-}
-
-function LoadingScreen(): ReactNode {
-  return (
-    <div className="boot">
-      <span className="boot-orb boot-orb-a" />
-      <span className="boot-orb boot-orb-b" />
-      <div className="boot-logo">
-        <LogoMark size={72} />
-        <span className="boot-ring" />
-      </div>
-      <h1>Cozy Launcher</h1>
-      <p>Завариваем чай и проверяем файлы…</p>
-      <div className="boot-loader">
-        <Spinner size={16} />
-      </div>
-      <McSprite kind="grass" size={32} className="boot-sticker boot-sticker-left" />
-      <McSprite kind="potion" size={32} className="boot-sticker boot-sticker-right" />
-    </div>
-  )
 }
 
 export function App(): ReactNode {
@@ -57,6 +35,10 @@ export function App(): ReactNode {
   useEffect(() => {
     document.documentElement.dataset.accent = accent
   }, [accent])
+
+  useEffect(() => {
+    document.documentElement.dataset.design = settings?.design ?? 'cozy'
+  }, [settings?.design])
 
   useEffect(() => {
     document.documentElement.dataset.animations = settings?.animations === false ? 'off' : 'on'

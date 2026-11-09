@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { Instance } from '@shared/types'
+import type { Instance, PlaytimeStats } from '@shared/types'
+import { formatPlaytime } from '@shared/utils'
 import { useApp } from '../state/AppContext'
 import { api, formatError } from '../lib/api'
 import { Badge, Button, Field, Modal, Spinner } from '../components/ui'
 import { Icon } from '../components/Icon'
+import { ScreenshotsModal } from '../components/ScreenshotsModal'
 
 interface FormState {
   name: string
@@ -33,6 +35,8 @@ export function InstancesPage(): ReactNode {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<Instance | null>(null)
+  const [playtime, setPlaytime] = useState<PlaytimeStats | null>(null)
+  const [gallery, setGallery] = useState<Instance | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -44,13 +48,29 @@ export function InstancesPage(): ReactNode {
     }
   }, [toast])
 
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
+  const refreshPlaytime = useCallback(async () => {
+    try {
+      setPlaytime(await api.stats.get())
+    } catch {
+      // Статистика не критична — карточки живут и без неё.
+    }
+  }, [])
 
   useEffect(() => {
-    if (launchState?.phase === 'exited' || launchState?.phase === 'stopped') void refresh()
-  }, [launchState?.phase, refresh])
+    void refresh()
+    void refreshPlaytime()
+  }, [refresh, refreshPlaytime])
+
+  useEffect(() => {
+    if (
+      launchState?.phase === 'exited' ||
+      launchState?.phase === 'stopped' ||
+      launchState?.phase === 'error'
+    ) {
+      void refresh()
+      void refreshPlaytime()
+    }
+  }, [launchState?.phase, refresh, refreshPlaytime])
 
   const versionOptions = useMemo(() => {
     const ids = new Set<string>()
@@ -205,7 +225,7 @@ export function InstancesPage(): ReactNode {
           <h3>Пока ни одной сборки</h3>
           <p>
             Создайте сборку для модов или подключите существующую из другого лаунчера во вкладке
-            «Настройки → Импорт».
+            «Настройки → Переезд с других лаунчеров».
           </p>
           <Button variant="primary" icon="plus" onClick={openCreate}>
             Создать сборку
@@ -215,6 +235,7 @@ export function InstancesPage(): ReactNode {
         <div className="instance-grid">
           {instances.map((instance) => {
             const playing = activeInstance?.id === instance.id && launchState?.phase === 'running'
+            const playedMs = playtime?.perInstance[instance.id] ?? 0
             return (
               <article className="instance-card" key={instance.id}>
                 <div className="instance-card-head">
@@ -241,6 +262,11 @@ export function InstancesPage(): ReactNode {
                   <span title={instance.dir}>
                     <Icon name="folder" size={14} /> {instance.external ? 'папка другого лаунчера' : 'своя папка'}
                   </span>
+                  {playedMs > 0 ? (
+                    <span>
+                      <Icon name="clock" size={14} /> В игре: ~{formatPlaytime(playedMs)}
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className="instance-actions">
@@ -273,6 +299,9 @@ export function InstancesPage(): ReactNode {
                 <div className="instance-links">
                   <button type="button" onClick={() => openEdit(instance)}>
                     <Icon name="settings" size={14} /> Настроить
+                  </button>
+                  <button type="button" onClick={() => setGallery(instance)}>
+                    <Icon name="monitor" size={14} /> Скриншоты
                   </button>
                   <button type="button" disabled={busy === instance.id} onClick={() => void clone(instance)}>
                     <Icon name="copy" size={14} /> Клонировать
@@ -395,10 +424,17 @@ export function InstancesPage(): ReactNode {
       >
         <p>
           {confirmDelete?.external
-            ? 'Сборка была подключена из другого лаунчера. Её файлы останутся на месте, из Cozy она просто исчезнет.'
+            ? 'Сборка была подключена из другого лаунчера. Её файлы останутся на месте, из JorneyMC она просто исчезнет.'
             : 'Папка сборки будет удалена вместе с модами, мирами и настройками. Версия Minecraft останется в лаунчере.'}
         </p>
       </Modal>
+
+      <ScreenshotsModal
+        open={gallery !== null}
+        scope={gallery?.id ?? null}
+        title={gallery?.name ?? ''}
+        onClose={() => setGallery(null)}
+      />
     </div>
   )
 }

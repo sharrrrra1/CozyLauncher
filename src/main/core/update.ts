@@ -66,7 +66,8 @@ function getUpdater(): any | null {
     const { autoUpdater } = require('electron-updater')
     autoUpdater.autoDownload = false
     autoUpdater.autoInstallOnAppQuit = false
-    autoUpdater.channel = UPDATE_CHANNEL
+    // electron-builder публикует latest.yml; канал stable искал бы stable.yml
+    autoUpdater.channel = 'latest'
     autoUpdater.allowPrerelease = false
     if (!updaterWired) {
       updaterWired = true

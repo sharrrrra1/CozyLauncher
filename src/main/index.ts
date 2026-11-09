@@ -7,11 +7,15 @@ import { maybeAutoCheck } from './core/update'
 import { runSmoke, runModsSmoke, runInstanceSmoke } from './smoke'
 
 let mainWindow: BrowserWindow | null = null
-let quitting = false
+
+app.setName('JorneyMC')
+
+// Rebrand must not orphan existing settings/accounts: keep the pre-rename data dir.
+app.setPath('userData', path.join(app.getPath('appData'), 'cozy-launcher'))
 
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
-  console.log('Another Cozy Launcher instance is already running — exiting')
+  console.log('Another JorneyMC instance is already running — exiting')
   app.quit()
 } else {
   app.on('second-instance', () => {
@@ -32,7 +36,7 @@ function createWindow(): BrowserWindow {
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#0a1411',
-    title: 'Cozy Launcher',
+    title: 'JorneyMC',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -69,6 +73,21 @@ async function captureScreenshots(window: BrowserWindow): Promise<void> {
     .filter(Boolean)
   fs.appendFileSync(path.join(outDir, 'debug.log'), `pages=${pages.join('|')}\n`)
 
+  if (pages.includes('loading')) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const hasLoading = (await window.webContents
+        .executeJavaScript("!!document.querySelector('.loading-screen')")
+        .catch(() => false)) as boolean
+      if (hasLoading) break
+      await new Promise((resolve) => setTimeout(resolve, 150))
+    }
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    const image = await window.webContents.capturePage()
+    fs.writeFileSync(path.join(outDir, 'loading.png'), image.toPNG())
+    fs.appendFileSync(path.join(outDir, 'debug.log'), 'saved loading\n')
+  }
+  const pageList = pages.filter((page) => page !== 'loading')
+
   await new Promise((resolve) => setTimeout(resolve, 2200))
   for (let attempt = 0; attempt < 40; attempt += 1) {
     const isReady = (await window.webContents.executeJavaScript(
@@ -81,25 +100,14 @@ async function captureScreenshots(window: BrowserWindow): Promise<void> {
   await window.webContents.executeJavaScript(
     "document.documentElement.dataset.animations = 'off'; true;"
   )
-  await new Promise((resolve) => setTimeout(resolve, 500))
-  if (process.env.COZY_SCREENSHOT_FULL) {
-    const zoom = (await window.webContents.executeJavaScript(
-      `(() => {
-        const el = document.querySelector('.content-scroll')
-        if (!el) return 1
-        return Math.min(1, Math.max(0.55, el.clientHeight / el.scrollHeight))
-      })()`
-    )) as number
+  const designOverride = process.env.COZY_SCREENSHOT_DESIGN
+  if (designOverride) {
     await window.webContents.executeJavaScript(
-      `(() => {
-        const el = document.querySelector('.content-scroll')
-        if (el) el.style.zoom = ${JSON.stringify(zoom)}
-        return true
-      })()`
+      `document.documentElement.dataset.design = ${JSON.stringify(designOverride)}; true;`
     )
-    await new Promise((resolve) => setTimeout(resolve, 450))
   }
-  for (const page of pages) {
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  for (const page of pageList) {
     try {
       fs.appendFileSync(path.join(outDir, 'debug.log'), `page ${page}\n`)
       await window.webContents.executeJavaScript(
@@ -128,6 +136,30 @@ async function captureScreenshots(window: BrowserWindow): Promise<void> {
           })()`
         )
         await new Promise((resolve) => setTimeout(resolve, 900))
+      }
+      if (process.env.COZY_SCREENSHOT_FULL) {
+        // Пересчитываем зум для каждой страницы — они разной высоты
+        await window.webContents.executeJavaScript(
+          `(() => {
+            const el = document.querySelector('.content-scroll')
+            if (!el) return false
+            el.style.zoom = ''
+            const zoom = Math.min(1, Math.max(0.12, el.clientHeight / el.scrollHeight))
+            el.style.zoom = String(zoom)
+            return zoom
+          })()`
+        )
+        await new Promise((resolve) => setTimeout(resolve, 450))
+      }
+      if (process.env.COZY_SCREENSHOT_SCROLL) {
+        await window.webContents.executeJavaScript(
+          `(() => {
+            const el = document.querySelector('.content-scroll')
+            if (el) el.scrollTop = el.scrollHeight
+            return true
+          })()`
+        )
+        await new Promise((resolve) => setTimeout(resolve, 400))
       }
       const image = await window.webContents.capturePage()
       fs.writeFileSync(path.join(outDir, `${page}.png`), image.toPNG())
@@ -232,12 +264,4 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
-})
-
-app.on('before-quit', () => {
-  quitting = true
-})
-
-app.on('will-quit', () => {
-  quitting = false
 })

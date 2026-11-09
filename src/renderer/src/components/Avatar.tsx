@@ -75,7 +75,7 @@ export function Avatar({
   const [head, setHead] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!account || account.type !== 'microsoft') {
+    if (!account) {
       setHead(null)
       return
     }
@@ -91,11 +91,11 @@ export function Avatar({
     return () => {
       alive = false
     }
-  }, [account?.id, account?.type])
+  }, [account?.id])
 
   const style = { width: size, height: size }
 
-  if (account?.type === 'microsoft' && head) {
+  if (head) {
     return (
       <div
         className={`avatar avatar-skin${glow ? ' is-glow' : ''}`}

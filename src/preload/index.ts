@@ -4,10 +4,13 @@ import type {
   AuthProgress,
   CozyApi,
   CrashInfo,
+  DiscordPresenceConfig,
   InstallProgress,
   LaunchState,
   LogLine,
+  PlaytimeStats,
   Settings,
+  SystemSpecs,
   VersionManifest,
   VersionStatus
 } from '@shared/types'
@@ -20,7 +23,9 @@ function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
 
 const api: CozyApi = {
   system: {
-    info: () => ipcRenderer.invoke('system:info')
+    info: () => ipcRenderer.invoke('system:info'),
+    specs: () => ipcRenderer.invoke('system:specs') as Promise<SystemSpecs>,
+    optimize: (context) => ipcRenderer.invoke('system:optimize', context)
   },
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
@@ -150,6 +155,24 @@ const api: CozyApi = {
     quitAndInstall: () => ipcRenderer.invoke('updates:quit-and-install'),
     onStatus: (cb) => subscribe('updates:status', cb),
     onProgress: (cb) => subscribe('updates:progress', cb)
+  },
+  stats: {
+    get: () => ipcRenderer.invoke('stats:get') as Promise<PlaytimeStats>
+  },
+  gallery: {
+    list: (scope) => ipcRenderer.invoke('screenshots:list', scope),
+    thumb: (scope, file) => ipcRenderer.invoke('screenshots:thumb', scope, file),
+    full: (scope, file) => ipcRenderer.invoke('screenshots:full', scope, file),
+    copy: (scope, file) => ipcRenderer.invoke('screenshots:copy', scope, file),
+    openFolder: (scope) => ipcRenderer.invoke('screenshots:open-dir', scope),
+    remove: (scope, file) => ipcRenderer.invoke('screenshots:delete', scope, file)
+  },
+  discord: {
+    config: () => ipcRenderer.invoke('discord:config') as Promise<DiscordPresenceConfig>,
+    updateConfig: (config: DiscordPresenceConfig) =>
+      ipcRenderer.invoke('discord:update-config', config) as Promise<DiscordPresenceConfig>,
+    setActivity: (activity: any) => ipcRenderer.invoke('discord:set-activity', activity),
+    clearActivity: () => ipcRenderer.invoke('discord:clear-activity')
   }
 }
 

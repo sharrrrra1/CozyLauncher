@@ -36,6 +36,7 @@ export interface ToastItem {
 
 interface AppContextValue {
   ready: boolean
+  bootStage: number
   settings: Settings | null
   system: SystemInfo | null
   accounts: Account[]
@@ -83,6 +84,7 @@ let toastSeq = 0
 
 export function AppProvider({ children }: { children: ReactNode }): ReactNode {
   const [ready, setReady] = useState(false)
+  const [bootStage, setBootStage] = useState(0)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [system, setSystem] = useState<SystemInfo | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -166,13 +168,16 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
         setSettings(loadedSettings)
         setSystem(loadedSystem)
         setFeatured(loadedFeatured)
+        setBootStage(1)
         await Promise.all([refreshAccounts(), refreshManifest()])
         if (!alive) return
+        setBootStage(2)
         const ids = [
           ...loadedFeatured.map((item) => item.id),
           loadedSettings.lastVersion
         ].filter(Boolean)
         await refreshStatuses(ids)
+        setBootStage(3)
         const initialLogs = await api.launch.logs()
         if (alive) setLogs(initialLogs)
       } catch (error) {
@@ -434,6 +439,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
   const value = useMemo<AppContextValue>(
     () => ({
       ready,
+      bootStage,
       settings,
       system,
       accounts,
@@ -476,6 +482,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
     }),
     [
       ready,
+      bootStage,
       settings,
       system,
       accounts,

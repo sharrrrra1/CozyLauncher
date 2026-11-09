@@ -1,17 +1,33 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { AccentName, ImportCandidate, ImportScan, JavaInfo } from '@shared/types'
+import type {
+  AccentName,
+  DesignName,
+  ImportCandidate,
+  ImportScan,
+  JavaInfo,
+  OptimizationResult,
+  PlaytimeStats
+} from '@shared/types'
+import { formatPlaytime } from '@shared/utils'
 import { useApp } from '../state/AppContext'
 import { api, formatBytes, formatError } from '../lib/api'
 import { Badge, Button, Field, Modal, Spinner, Toggle } from '../components/ui'
 import { Icon } from '../components/Icon'
-import { Torch } from '../components/Stickers'
 import { McSprite } from '../components/McSprite'
+import { CommunityLinks } from '../components/CommunityLinks'
 
 const ACCENTS: { id: AccentName; label: string }[] = [
   { id: 'emerald', label: 'Изумруд' },
   { id: 'amber', label: 'Янтарь' },
   { id: 'frost', label: 'Иней' },
   { id: 'rose', label: 'Роза' }
+]
+
+const DESIGNS: { id: DesignName; label: string; hint: string }[] = [
+  { id: 'cozy', label: 'Cozy', hint: 'Тёмная уютная тема · изумруд' },
+  { id: 'neon', label: 'Neon', hint: 'Киберпанк · сетка и неон' },
+  { id: 'aurora', label: 'Aurora', hint: 'Светлое стекло · живые градиенты' },
+  { id: 'crt', label: "CRT '84", hint: 'Ретро-терминал · янтарный фосфор' }
 ]
 
 const RESOLUTIONS = [
@@ -71,7 +87,7 @@ function Row({
 }
 
 export function SettingsPage(): ReactNode {
-  const { settings, system, updateSettings, refreshAccounts, toast } = useApp()
+  const { settings, system, updateSettings, refreshAccounts, toast, launchState } = useApp()
   const [javaList, setJavaList] = useState<JavaInfo[] | null>(null)
   const [javaLoading, setJavaLoading] = useState(false)
   const [ramDraft, setRamDraft] = useState(settings?.ramMb ?? 2048)
@@ -86,6 +102,10 @@ export function SettingsPage(): ReactNode {
   const [connectTarget, setConnectTarget] = useState<ImportCandidate | null>(null)
   const [connectName, setConnectName] = useState('')
   const [connectVersion, setConnectVersion] = useState('')
+  const [playtime, setPlaytime] = useState<PlaytimeStats | null>(null)
+  const [optPlan, setOptPlan] = useState<OptimizationResult | null>(null)
+  const [optLoading, setOptLoading] = useState(false)
+  const [optApplying, setOptApplying] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -138,6 +158,19 @@ export function SettingsPage(): ReactNode {
       alive = false
     }
   }, [])
+
+  useEffect(() => {
+    let alive = true
+    api.stats
+      .get()
+      .then((stats) => {
+        if (alive) setPlaytime(stats)
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [launchState?.phase])
 
   if (!settings) {
     return (
@@ -276,6 +309,70 @@ export function SettingsPage(): ReactNode {
     }
   }
 
+  const openOptimization = async (): Promise<void> => {
+    if (!settings) return
+    setOptLoading(true)
+    try {
+      const instances = await api.instances.list()
+      const modsCount = instances.reduce((max, item) => Math.max(max, item.modsCount ?? 0), 0)
+      const plan = await api.system.optimize({
+        modsCount,
+        currentRamMb: settings.ramMb,
+        currentJvmArgs: settings.jvmArgs,
+        currentWidth: settings.width,
+        currentHeight: settings.height,
+        currentFullscreen: settings.fullscreen
+      })
+      setOptPlan(plan)
+    } catch (error) {
+      toast('error', 'Не удалось подобрать настройки', formatError(error))
+    } finally {
+      setOptLoading(false)
+    }
+  }
+
+  const applyOptimization = async (): Promise<void> => {
+    if (!settings || !optPlan) return
+    setOptApplying(true)
+    try {
+      const previousRam = settings.ramMb
+      const patch: Partial<typeof settings> = {
+        ramMb: optPlan.ramMb,
+        width: optPlan.width,
+        height: optPlan.height,
+        fullscreen: optPlan.fullscreen,
+        customResolution: true
+      }
+      if (!optPlan.keepCustomJvm) patch.jvmArgs = optPlan.jvmArgsLine
+      await updateSettings(patch)
+
+      // Решение по сборкам: не трогаем только те, где игрок явно выставил своё
+      // число. Если память не задана (наследует глобальную) или равна прежней
+      // глобальной рекомендации — обновляем вместе с настройками.
+      const instances = await api.instances.list()
+      for (const instance of instances) {
+        if (instance.ramMb === undefined || instance.ramMb === previousRam) {
+          await api.instances.update(instance.id, { ramMb: optPlan.ramMb })
+        }
+      }
+
+      const memory =
+        optPlan.ramMb % 1024 === 0 ? `${optPlan.ramMb / 1024} ГБ` : `${optPlan.ramMb} МБ`
+      toast(
+        'success',
+        'Готово: настройки подобраны',
+        optPlan.keepCustomJvm
+          ? `Под вас подобрали ${memory} — ваши JVM-аргументы не трогали`
+          : `Под вас подобрали ${memory} и G1GC — теперь игра берёт память бережно`
+      )
+      setOptPlan(null)
+    } catch (error) {
+      toast('error', 'Не удалось применить настройки', formatError(error))
+    } finally {
+      setOptApplying(false)
+    }
+  }
+
   const matchingJava = javaList?.filter((item) => item.major >= 21) ?? []
   const ramPercent = Math.round(
     ((Math.min(ramDraft, maxRam) - 512) / Math.max(1, maxRam - 512)) * 100
@@ -285,11 +382,11 @@ export function SettingsPage(): ReactNode {
     <div className="page settings-page">
       <div className="page-heading">
         <div>
-          <span className="page-eyebrow">Конфигурация</span>
+          <span className="page-eyebrow">Тонкая настройка</span>
           <h1>Настройки лаунчера</h1>
         </div>
         <span className="heading-note">
-          <Icon name="check" size={14} /> Изменения сохраняются автоматически
+          <Icon name="check" size={14} /> Всё сохраняется само, можно просто играть
         </span>
       </div>
 
@@ -380,6 +477,32 @@ export function SettingsPage(): ReactNode {
             />
           </Row>
 
+          <Row
+            label="Показывать игру в Discord"
+            hint="Друзья увидят, во что вы играете и сколько часов намотали. Можно выключить в один клик"
+          >
+            <Toggle
+              checked={settings.discordRpc}
+              onChange={(checked) => void updateSettings({ discordRpc: checked })}
+              label="Показывать игру в Discord"
+            />
+          </Row>
+
+          <Row
+            label="Оптимизация под это ПК"
+            hint="Посмотрим на процессор, память и экран — и подберём настройки Minecraft."
+          >
+            <Button
+              variant="soft"
+              icon="sparkles"
+              className="btn-small"
+              loading={optLoading}
+              onClick={() => void openOptimization()}
+            >
+              Подобрать
+            </Button>
+          </Row>
+
           <Row label="Папка игры" hint={settings.gameDir}>
             <div className="path-control">
               <button className="btn btn-ghost btn-small" onClick={() => void pickGameDir()}>
@@ -397,7 +520,7 @@ export function SettingsPage(): ReactNode {
 
         <Section
           title="Java"
-          subtitle="Среда выполнения Minecraft"
+          subtitle="Java для запуска игры"
           icon={<Icon name="java" size={19} />}
         >
           <div className="java-mode">
@@ -446,7 +569,7 @@ export function SettingsPage(): ReactNode {
             ) : null}
             {javaList?.length === 0 ? (
               <div className="java-empty">
-                Java не найдена. Лаунчер скачает нужную среду с серверов Mojang при запуске.
+                Java не нашлась — не страшно. Нужную версию скачаем сами при первом запуске.
               </div>
             ) : null}
             {javaList?.map((item) => (
@@ -456,7 +579,7 @@ export function SettingsPage(): ReactNode {
                 </span>
                 <div className="java-item-text">
                   <strong>{item.version}</strong>
-                  <span className="mono">{item.path}</span>
+                  <span className="mono" title={item.path}>{item.path}</span>
                 </div>
                 <Badge tone={item.source === 'mojang' ? 'info' : 'neutral'}>
                   {item.source === 'mojang' ? 'Mojang' : item.source === 'custom' ? 'Выбрана' : 'Система'}
@@ -476,15 +599,58 @@ export function SettingsPage(): ReactNode {
         <Section
           title="Внешний вид"
           subtitle="Атмосфера лаунчера"
-          icon={<Torch size={19} />}
+          icon={<Icon name="palette" size={19} />}
         >
-          <Row label="Акцентный цвет" hint="Подсветка кнопок и активных элементов">
+          <Row
+            label="Дизайн"
+            hint="Полная смена облика лаунчера — применяется мгновенно"
+            stacked
+          >
+            <div className="design-grid">
+              {DESIGNS.map((design) => (
+                <button
+                  key={design.id}
+                  className={`design-card${settings.design === design.id ? ' is-active' : ''}`}
+                  onClick={() => void updateSettings({ design: design.id })}
+                  aria-pressed={settings.design === design.id}
+                >
+                  <span className={`design-preview is-${design.id}`} aria-hidden="true">
+                    <span className="dp-bar" />
+                    <span className="dp-body">
+                      <span className="dp-side" />
+                      <span className="dp-main">
+                        <span className="dp-hero" />
+                        <span className="dp-row" />
+                        <span className="dp-row" />
+                      </span>
+                    </span>
+                  </span>
+                  <span className="design-meta">
+                    <strong>{design.label}</strong>
+                    <span>{design.hint}</span>
+                  </span>
+                  <span className="design-check">
+                    <Icon name="check" size={13} />
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Row>
+          <Row
+            label="Акцентный цвет"
+            hint={
+              settings.design === 'cozy'
+                ? 'Подсветка кнопок и активных элементов'
+                : 'В дизайнах Neon и Aurora палитра фиксированная'
+            }
+          >
             <div className="accent-control">
               {ACCENTS.map((accent) => (
                 <button
                   key={accent.id}
                   className={`accent-swatch accent-${accent.id}${settings.accent === accent.id ? ' is-active' : ''}`}
                   onClick={() => void updateSettings({ accent: accent.id })}
+                  disabled={settings.design !== 'cozy'}
                   title={accent.label}
                   aria-label={accent.label}
                 >
@@ -503,8 +669,8 @@ export function SettingsPage(): ReactNode {
           <div className="appearance-preview">
             <McSprite kind="xp" size={32} />
             <div>
-              <strong>{ACCENTS.find((item) => item.id === settings.accent)?.label}</strong>
-              <span>Тёмная уютная тема · Manrope</span>
+              <strong>{DESIGNS.find((item) => item.id === settings.design)?.label}</strong>
+              <span>{DESIGNS.find((item) => item.id === settings.design)?.hint} · Manrope</span>
             </div>
           </div>
         </Section>
@@ -598,15 +764,15 @@ export function SettingsPage(): ReactNode {
           </Row>
           <div className="about-note">
             <Icon name="download" size={15} />
-            Загрузки идут параллельно, недокачиваются после обрыва и проверяются по SHA-1. Если
-            зеркало недоступно, лаунчер автоматически вернётся к официальному серверу.
+            Качаем в несколько потоков и проверяем каждый файл по SHA-1. Если загрузка оборвалась —
+            докачаем с того же места, а если зеркало молчит — сами переключимся на сервер Mojang.
           </div>
         </Section>
 
         <Section
-          title="Импорт из других лаунчеров"
-          subtitle="Перенос сборок, миров и аккаунтов"
-          icon={<Icon name="download" size={19} />}
+          title="Переезд с других лаунчеров"
+          subtitle="Подхватим ваши сборки, миры и аккаунты"
+          icon={<Icon name="import" size={19} />}
           className="settings-wide"
         >
           <Row
@@ -650,7 +816,7 @@ export function SettingsPage(): ReactNode {
           ) : null}
 
           {scan && scan.candidates.length === 0 ? (
-            <div className="java-empty">Других сборок не найдено</div>
+            <div className="java-empty">Других сборок пока не нашлось — может, всё уже подключено</div>
           ) : null}
 
           <div className="import-list">
@@ -682,23 +848,23 @@ export function SettingsPage(): ReactNode {
 
           <Row
             label="Аккаунты"
-            hint="Имена из launcher_profiles.json. Токены других лаунчеров перенести нельзя"
+            hint="Имена подтянем из launcher_profiles.json. Токены чужих лаунчеров перенести нельзя — так устроена защита Microsoft"
           >
             <Button variant="soft" className="btn-small" onClick={() => void importAccounts()}>
-              Импортировать офлайн-аккаунты
+              Забрать офлайн-аккаунты
             </Button>
           </Row>
         </Section>
 
         <Section
-          title="О системе"
-          subtitle="Диагностика и версии"
+          title="О лаунчере"
+          subtitle="Что под капотом"
           icon={<Icon name="info" size={19} />}
           className="settings-wide"
         >
           <div className="about-grid">
             <div className="about-item">
-              <span>Cozy Launcher</span>
+              <span>JorneyMC</span>
               <strong>{api.app.version}</strong>
             </div>
             <div className="about-item">
@@ -715,15 +881,21 @@ export function SettingsPage(): ReactNode {
               <span>Процессор</span>
               <strong title={system?.cpuModel}>{system ? `${system.cores} ядер` : '—'}</strong>
             </div>
+            <div className="about-item is-playtime">
+              <span>Всего в игре</span>
+              <strong>{playtime ? formatPlaytime(playtime.totalMs) : '—'}</strong>
+              <em className="about-item-sub">считаем сами, пока игра открыта</em>
+            </div>
             <div className="about-item is-wide">
               <span>Папка лаунчера</span>
-              <strong className="mono">{settings.gameDir}</strong>
+              <strong className="mono" title={settings.gameDir}>{settings.gameDir}</strong>
             </div>
           </div>
+          <CommunityLinks compact />
           <div className="about-note">
             <Icon name="shield" size={15} />
-            Токены Microsoft шифруются через safeStorage Windows. Пароль не сохраняется.
-            Лаунчер скачивает только официальные файлы Mojang и проверяет SHA-1.
+            Токены Microsoft лежат в зашифрованном хранилище Windows — пароль мы не видим и не
+            храним. Скачиваем только официальные файлы Mojang и сверяем их контрольные суммы.
           </div>
         </Section>
       </div>
@@ -769,7 +941,7 @@ export function SettingsPage(): ReactNode {
           <Field
             label="Версия Minecraft"
             wide
-            hint="Которая установлена в Cozy. Сборка использует общие файлы версии."
+            hint="Которая установлена в JorneyMC. Сборка использует общие файлы версии."
           >
             <input
               value={connectVersion}
@@ -778,6 +950,49 @@ export function SettingsPage(): ReactNode {
               onChange={(event) => setConnectVersion(event.target.value)}
             />
           </Field>
+        </div>
+      </Modal>
+
+      <Modal
+        open={optPlan !== null}
+        width={520}
+        icon="sparkles"
+        title="Подберём под этот ПК"
+        subtitle="Ничего не меняем без вашего согласия"
+        dismissable={!optApplying}
+        onClose={() => setOptPlan(null)}
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => setOptPlan(null)}
+              disabled={optApplying}
+            >
+              Оставить как есть
+            </Button>
+            <Button
+              variant="primary"
+              loading={optApplying}
+              onClick={() => void applyOptimization()}
+            >
+              Применить
+            </Button>
+          </>
+        }
+      >
+        <div className="optimize-notes">
+          {optPlan?.notes.map((note) => (
+            <div className="optimize-note" key={note}>
+              <span className="optimize-note-icon">
+                <Icon name="check" size={13} />
+              </span>
+              <span>{note}</span>
+            </div>
+          ))}
+        </div>
+        <div className="about-note">
+          <Icon name="info" size={15} />
+          Это только предложение: настройки изменятся после кнопки «Применить».
         </div>
       </Modal>
     </div>

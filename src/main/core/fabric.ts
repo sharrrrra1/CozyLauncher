@@ -13,7 +13,7 @@ import type { VersionJson } from './version'
 import { getVersionStatus } from './installer'
 
 const FABRIC_META = 'https://meta.fabricmc.net/v2/versions/loader'
-const USER_AGENT = 'CozyLauncher/1.1.0 (+https://github.com/sharrrrra1/CozyLauncher)'
+const USER_AGENT = 'JourneyMC/1.1.0 (+https://github.com/sharrrrra1/CozyLauncher)'
 
 export {
   fabricVersionId,

@@ -26,8 +26,7 @@ export function TitleBar(): ReactNode {
     <header className="titlebar">
       <div className="titlebar-brand">
         <LogoMark size={22} />
-        <span className="titlebar-name">Cozy Launcher</span>
-        <span className="titlebar-tag">Minecraft</span>
+        <span className="titlebar-name">JorneyMC</span>
       </div>
 
       <div className="titlebar-center">

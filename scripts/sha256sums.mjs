@@ -3,8 +3,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const releaseDir = path.resolve('release')
-const { version } = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'))
-const pattern = new RegExp(`^CozyLauncher-(Setup|Portable)-${version.replace(/\./g, '\\.')}\\.exe$`)
+const pkg = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'))
+const { version } = pkg
+const product = pkg.build?.productName ?? pkg.name
+const pattern = new RegExp(`^${product}-(Setup|Portable)-${version.replace(/\./g, '\\.')}\\.exe$`)
 
 if (!fs.existsSync(releaseDir)) {
   console.error('Папка release/ не найдена. Сначала выполните npm run dist.')

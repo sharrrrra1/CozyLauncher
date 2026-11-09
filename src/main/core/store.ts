@@ -2,7 +2,7 @@ import { safeStorage } from 'electron'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import type { Account, AccentName, Settings } from '@shared/types'
+import type { Account, AccentName, DesignName, Settings } from '@shared/types'
 import { defaultGameDir, ensureDir, launcherDataDir } from './paths'
 
 export interface StoredAccount extends Account {
@@ -15,6 +15,7 @@ interface AccountsFile {
 }
 
 const ACCENTS: AccentName[] = ['emerald', 'amber', 'frost', 'rose']
+const DESIGNS: DesignName[] = ['cozy', 'neon', 'aurora', 'crt']
 
 let settingsCache: Settings | null = null
 let accountsCache: StoredAccount[] | null = null
@@ -44,8 +45,10 @@ export function defaultSettings(): Settings {
     customResolution: true,
     jvmArgs: '',
     accent: 'emerald',
+    design: 'cozy',
     animations: true,
     closeOnLaunch: false,
+    discordRpc: true,
     msClientId: '00000000402b5328',
     lastVersion: '',
     lastAccountId: '',
@@ -74,6 +77,7 @@ function sanitizeSettings(raw: Partial<Settings>): Settings {
   const totalMb = Math.floor(os.totalmem() / 1024 / 1024)
   const merged = { ...defaults, ...raw }
   const accent = ACCENTS.includes(merged.accent) ? merged.accent : defaults.accent
+  const design = DESIGNS.includes(merged.design) ? merged.design : 'cozy'
   return {
     ...merged,
     ramMb: Math.max(512, Math.min(Math.max(1024, totalMb - 1024), Math.round(merged.ramMb))),
@@ -83,6 +87,10 @@ function sanitizeSettings(raw: Partial<Settings>): Settings {
     javaPath: merged.javaMode === 'custom' ? merged.javaPath.trim() : '',
     gameDir: merged.gameDir.trim() || defaults.gameDir,
     accent,
+    design,
+    animations: merged.animations !== false,
+    closeOnLaunch: merged.closeOnLaunch === true,
+    discordRpc: merged.discordRpc !== false,
     msClientId: merged.msClientId.trim() || defaults.msClientId,
     jvmArgs: merged.jvmArgs ?? '',
     downloadMirror: merged.downloadMirror === 'bmclapi' ? 'bmclapi' : 'official',

@@ -12,6 +12,8 @@ export function createOfflineAccount(name: string): Account {
     type: 'offline',
     name: trimmed,
     uuid,
+    // Use Crafatar service to provide a skin image for offline UUIDs
+    skinUrl: `https://crafatar.com/skins/${uuid}`,
     createdAt: Date.now()
   }
 }

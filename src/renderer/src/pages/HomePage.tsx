@@ -8,6 +8,8 @@ import { VersionArt } from '../components/VersionArt'
 import { Avatar } from '../components/Avatar'
 import { Icon } from '../components/Icon'
 import { McSprite } from '../components/McSprite'
+import { CommunityLinks } from '../components/CommunityLinks'
+import { ScreenshotsModal } from '../components/ScreenshotsModal'
 import type { PageId } from '../components/Sidebar'
 
 function greeting(): string {
@@ -40,6 +42,7 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('none')
   const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null)
   const [serverBusy, setServerBusy] = useState(false)
+  const [galleryOpen, setGalleryOpen] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -119,18 +122,16 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
             {greeting()}
             {current ? `, ${current.name}` : ''}
           </span>
-          <h1>Ваш уютный уголок Minecraft</h1>
+          <h1>JorneyMC</h1>
         </div>
         <button className="heading-chip" onClick={() => onNavigate('versions')}>
           <Icon name="sparkles" size={15} />
-          Подборка Cozy
+          Выбрать версию
           <Icon name="arrowRight" size={14} />
         </button>
       </div>
 
       <section className="hero">
-        <span className="hero-orb hero-orb-a" />
-        <span className="hero-orb hero-orb-b" />
         <div className="hero-copy">
           <div className="hero-pill">
             <span className="hero-pill-dot" />
@@ -146,9 +147,9 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
             <span className="hero-title-version">{selectedVersion || '—'}</span>
           </h2>
           <p className="hero-subtitle">
-            {activeFeature?.tagline ?? 'Выберите версию и погрузитесь в игру'}.
+            {activeFeature?.tagline ?? 'Выберите версию и играйте'}.
             {' '}
-            Аккаунт, Java и файлы — всё под контролем в одном лаунчере.
+            Аккаунт, Java и файлы — в одном месте.
           </p>
 
           <div className="hero-chips">
@@ -204,6 +205,9 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
             <Button variant="ghost" icon="settings" onClick={() => onNavigate('settings')}>
               Настройки
             </Button>
+            <Button variant="ghost" icon="monitor" onClick={() => setGalleryOpen(true)}>
+              Скриншоты
+            </Button>
           </div>
 
           {installing && installProgress ? (
@@ -238,10 +242,6 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
             className="hero-cover"
           />
           <McSprite kind="creeper" size={56} className="float-sticker sticker-creeper" />
-          <McSprite kind="diamond" size={48} className="float-sticker sticker-diamond" />
-          <McSprite kind="heart" size={36} className="float-sticker sticker-heart" />
-          <McSprite kind="grass" size={48} className="float-sticker sticker-grass" />
-          <span className="hero-stage-glow" />
         </div>
       </section>
 
@@ -302,7 +302,7 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
         <div className="section-head">
           <div>
             <h3>Избранные версии</h3>
-            <p>Проверенные сборки для уютной игры</p>
+            <p>Отобранные версии — ставь и играй</p>
           </div>
           <button className="link-action" onClick={() => onNavigate('versions')}>
             Все версии <Icon name="arrowRight" size={14} />
@@ -331,9 +331,10 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
         </div>
       </section>
 
+      <CommunityLinks />
+
       {serverConfig ? (
         <section className={`server-promo status-${serverConfig.status}`}>
-          <span className="server-promo-glow" />
           <div className="server-promo-copy">
             <span className="page-eyebrow">
               {serverConfig.status === 'online'
@@ -391,7 +392,7 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
                 ? 'Обновление готово к установке'
                 : updateStatus === 'downloading'
                   ? 'Скачиваем обновление лаунчера'
-                  : 'Доступно обновление Cozy Launcher'}
+                  : 'Доступно обновление JorneyMC'}
             </strong>
             <p>
               {updateStatus === 'downloading'
@@ -429,7 +430,7 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
           <McSprite kind="potion" size={32} />
         </span>
         <div>
-          <strong>Уютный совет</strong>
+          <strong>На заметку</strong>
           <p>
             Офлайн-профиль не требует интернета и подходит для модов и игры «для себя».
             Для серверов с проверкой лицензии используйте аккаунт Microsoft.
@@ -439,6 +440,13 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
           Аккаунты <Icon name="arrowRight" size={14} />
         </button>
       </section>
+
+      <ScreenshotsModal
+        open={galleryOpen}
+        scope="vanilla"
+        title="Ванильный Minecraft"
+        onClose={() => setGalleryOpen(false)}
+      />
     </div>
   )
 }

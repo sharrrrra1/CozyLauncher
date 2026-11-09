@@ -1,0 +1,421 @@
+/* ============================================================
+   JourneyMC — дизайн «Neon»: киберпанк, электрик-циан + маджента
+   Активируется через :root[data-design='neon']
+   ============================================================ */
+
+:root[data-design='neon'] {
+  --bg-0: #04060f;
+  --bg-1: #070b18;
+  --bg-2: #0a1020;
+  --bg-3: #0e1528;
+
+  --panel: rgba(10, 15, 34, 0.68);
+  --panel-solid: #0b1124;
+  --panel-raised: rgba(15, 22, 46, 0.85);
+  --line: rgba(80, 200, 255, 0.12);
+  --line-strong: rgba(80, 200, 255, 0.24);
+  --line-input: rgba(80, 200, 255, 0.2);
+
+  --text: #e8f4ff;
+  --text-dim: #b9cdea;
+  --muted: #7d92b8;
+  --muted-2: #55688c;
+
+  --warm: #ffb648;
+  --info: #7cc6ff;
+  --rose: #ff5c8a;
+
+  --accent: #28e0ff;
+  --accent-2: #ff3dd8;
+  --accent-ink: #02141a;
+  --accent-soft: rgba(40, 224, 255, 0.14);
+  --accent-softer: rgba(40, 224, 255, 0.07);
+  --accent-line: rgba(40, 224, 255, 0.42);
+  --accent-glow: rgba(40, 224, 255, 0.38);
+
+  --radius-lg: 14px;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-xs: 4px;
+
+  --shadow-lg: 0 30px 70px rgba(0, 0, 0, 0.65);
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+  --shadow-soft: 0 12px 34px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 18px 46px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 0 1px rgba(40, 224, 255, 0.35), 0 10px 30px rgba(40, 224, 255, 0.22);
+
+  --table-head: rgba(7, 11, 24, 0.92);
+  --console-bar-bg: rgba(4, 7, 18, 0.95);
+  --veil: 10, 15, 34;
+}
+
+/* ---------- Фон: движущаяся сетка + неоновые всполохи ---------- */
+
+:root[data-design='neon'] .app {
+  background:
+    radial-gradient(1000px 560px at 82% -10%, rgba(40, 224, 255, 0.1), transparent 62%),
+    radial-gradient(820px 500px at -6% 108%, rgba(255, 61, 216, 0.08), transparent 60%),
+    linear-gradient(165deg, #060a18 0%, #04060f 48%, #03040c 100%);
+}
+
+:root[data-design='neon'] .app::before {
+  opacity: 0.6;
+  background-image:
+    linear-gradient(rgba(40, 224, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(40, 224, 255, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 95% 85% at 50% 8%, #000 0%, transparent 80%);
+  animation: neonGridScroll 3.2s linear infinite;
+}
+
+:root[data-design='neon'] .app::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 4px);
+  mix-blend-mode: overlay;
+}
+
+@keyframes neonGridScroll {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 0 48px, 0 0; }
+}
+
+@keyframes neonPulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(40, 224, 255, 0.3), 0 8px 22px rgba(0, 0, 0, 0.4); }
+  50% { box-shadow: 0 0 34px rgba(40, 224, 255, 0.55), 0 8px 22px rgba(0, 0, 0, 0.4); }
+}
+
+@keyframes neonTextFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes neonPageIn {
+  from { opacity: 0; transform: translateY(12px); filter: brightness(1.6); }
+  to { opacity: 1; transform: translateY(0); filter: brightness(1); }
+}
+
+/* ---------- Каркас ---------- */
+
+:root[data-design='neon'] .app-body {
+  z-index: 2;
+}
+
+:root[data-design='neon'] .titlebar {
+  background: rgba(4, 7, 18, 0.78);
+  border-bottom-color: rgba(40, 224, 255, 0.18);
+  box-shadow: 0 1px 0 rgba(40, 224, 255, 0.08), 0 8px 28px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-design='neon'] .titlebar-name {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 12.5px;
+  background: linear-gradient(90deg, #28e0ff, #ff3dd8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+:root[data-design='neon'] .logo-mark {
+  filter: hue-rotate(48deg) saturate(1.3) drop-shadow(0 0 8px rgba(40, 224, 255, 0.45));
+}
+
+:root[data-design='neon'] .sidebar {
+  background: linear-gradient(180deg, rgba(7, 11, 26, 0.9), rgba(4, 6, 16, 0.94));
+  border-right-color: rgba(40, 224, 255, 0.14);
+}
+
+:root[data-design='neon'] .sidebar-glow {
+  background: radial-gradient(circle, rgba(40, 224, 255, 0.12), transparent 68%);
+}
+
+:root[data-design='neon'] .sidebar-eyebrow {
+  color: var(--muted-2);
+  letter-spacing: 0.22em;
+}
+
+:root[data-design='neon'] .nav-item {
+  border-radius: 8px;
+  letter-spacing: 0.02em;
+}
+
+:root[data-design='neon'] .nav-item:hover {
+  background: rgba(40, 224, 255, 0.07);
+  color: var(--text);
+}
+
+:root[data-design='neon'] .nav-item.is-active,
+:root[data-design='neon'] .nav-item[aria-current='page'] {
+  background: linear-gradient(90deg, rgba(40, 224, 255, 0.14), rgba(255, 61, 216, 0.05));
+  box-shadow: inset 0 0 0 1px rgba(40, 224, 255, 0.4), inset 2px 0 0 #28e0ff;
+  animation: neonPulse 3.4s ease-in-out infinite;
+}
+
+:root[data-design='neon'] .nav-icon {
+  background: rgba(40, 224, 255, 0.06);
+  border-radius: 6px;
+}
+
+:root[data-design='neon'] .page-swap {
+  animation: neonPageIn 0.38s cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+
+/* ---------- Типографика ---------- */
+
+:root[data-design='neon'] .page-eyebrow,
+:root[data-design='neon'] .hero-title-small,
+:root[data-design='neon'] .art-name {
+  letter-spacing: 0.24em;
+  color: var(--accent);
+  text-shadow: 0 0 12px rgba(40, 224, 255, 0.4);
+}
+
+:root[data-design='neon'] .hero-title-version {
+  background: linear-gradient(100deg, #28e0ff 10%, #ff3dd8 55%, #28e0ff 95%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: neonTextFlow 7s ease-in-out infinite;
+  filter: drop-shadow(0 0 22px rgba(40, 224, 255, 0.25));
+}
+
+/* ---------- Поверхности ---------- */
+
+:root[data-design='neon'] .hero {
+  border-color: rgba(40, 224, 255, 0.22);
+  background:
+    linear-gradient(135deg, rgba(10, 18, 42, 0.85), rgba(5, 8, 22, 0.92)),
+    radial-gradient(600px 300px at 12% 0%, rgba(40, 224, 255, 0.12), transparent 70%);
+  box-shadow: 0 0 0 1px rgba(40, 224, 255, 0.06), 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+:root[data-design='neon'] .hero::after {
+  border-color: rgba(40, 224, 255, 0.14);
+}
+
+:root[data-design='neon'] .stat-card,
+:root[data-design='neon'] .version-card,
+:root[data-design='neon'] .settings-card,
+:root[data-design='neon'] .account-tile,
+:root[data-design='neon'] .community {
+  border-color: rgba(80, 200, 255, 0.14);
+}
+
+:root[data-design='neon'] .stat-card:hover,
+:root[data-design='neon'] .version-card:hover,
+:root[data-design='neon'] .settings-card:hover,
+:root[data-design='neon'] .account-tile:hover {
+  border-color: rgba(40, 224, 255, 0.45);
+  box-shadow: 0 0 24px rgba(40, 224, 255, 0.14), 0 18px 46px rgba(0, 0, 0, 0.55);
+}
+
+:root[data-design='neon'] .modal {
+  background: linear-gradient(170deg, rgba(12, 18, 42, 0.97), rgba(5, 8, 22, 0.99));
+  border-color: rgba(40, 224, 255, 0.3);
+}
+
+:root[data-design='neon'] .toast {
+  background: rgba(8, 12, 30, 0.97);
+  border-color: rgba(40, 224, 255, 0.3);
+}
+
+/* ---------- Кнопки ---------- */
+
+:root[data-design='neon'] .btn {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 11.5px;
+}
+
+:root[data-design='neon'] .btn-primary {
+  color: #02141a;
+  background: linear-gradient(135deg, #28e0ff 0%, #6d7bff 100%);
+  box-shadow: 0 0 20px rgba(40, 224, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  animation: neonPulse 3s ease-in-out infinite;
+}
+
+:root[data-design='neon'] .btn-primary:hover:not(:disabled) {
+  filter: brightness(1.12);
+  box-shadow: 0 0 34px rgba(40, 224, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+:root[data-design='neon'] .btn-soft {
+  background: rgba(40, 224, 255, 0.07);
+  border-color: rgba(80, 200, 255, 0.18);
+}
+
+:root[data-design='neon'] .btn-soft:hover:not(:disabled) {
+  background: rgba(40, 224, 255, 0.13);
+  border-color: rgba(40, 224, 255, 0.4);
+}
+
+:root[data-design='neon'] .btn-ghost:hover:not(:disabled) {
+  background: rgba(40, 224, 255, 0.06);
+}
+
+:root[data-design='neon'] .icon-btn:hover:not(:disabled) {
+  background: rgba(40, 224, 255, 0.1);
+}
+
+/* ---------- Формы ---------- */
+
+:root[data-design='neon'] .field input,
+:root[data-design='neon'] .form input,
+:root[data-design='neon'] .text-input,
+:root[data-design='neon'] .search input,
+:root[data-design='neon'] .resolution-inputs input {
+  background: rgba(3, 6, 18, 0.65);
+}
+
+:root[data-design='neon'] .field input:focus,
+:root[data-design='neon'] .form input:focus,
+:root[data-design='neon'] .text-input:focus,
+:root[data-design='neon'] .search input:focus {
+  background: rgba(3, 6, 18, 0.9);
+  box-shadow: 0 0 0 3px rgba(40, 224, 255, 0.14), 0 0 18px rgba(40, 224, 255, 0.12);
+}
+
+:root[data-design='neon'] .field select,
+:root[data-design='neon'] .select-inline {
+  background-color: rgba(3, 6, 18, 0.65);
+}
+
+:root[data-design='neon'] .segmented {
+  background: rgba(3, 6, 18, 0.55);
+}
+
+:root[data-design='neon'] .badge-neutral {
+  background: rgba(40, 224, 255, 0.06);
+}
+
+:root[data-design='neon'] .skeleton {
+  background: linear-gradient(90deg, rgba(40, 224, 255, 0.05) 0%, rgba(40, 224, 255, 0.14) 50%, rgba(40, 224, 255, 0.05) 100%);
+  background-size: 200% 100%;
+}
+
+/* ---------- Скроллбар и загрузка ---------- */
+
+:root[data-design='neon'] ::-webkit-scrollbar-thumb {
+  background: rgba(40, 224, 255, 0.18);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+:root[data-design='neon'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(40, 224, 255, 0.34);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+}
+
+:root[data-design='neon'] .loading-stars {
+  --loading-star: 40, 224, 255;
+}
+
+:root[data-design='neon'] .loading-name {
+  background: linear-gradient(90deg, #28e0ff, #ff3dd8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 18px rgba(40, 224, 255, 0.35));
+}
+
+/* ============================================================
+   Структура и формы: угловатый техничный HUD
+   Меняет геометрию всех компонентов, а не только цвет
+   ============================================================ */
+
+:root[data-design='neon'] .btn,
+:root[data-design='neon'] .btn-small {
+  border-radius: 3px;
+  font-weight: 750;
+}
+
+:root[data-design='neon'] .nav-item {
+  height: 40px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+}
+
+:root[data-design='neon'] .nav-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+}
+
+:root[data-design='neon'] .page-heading h1 {
+  font-size: 26px;
+  font-weight: 850;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+:root[data-design='neon'] .stat-card,
+:root[data-design='neon'] .version-card,
+:root[data-design='neon'] .settings-card,
+:root[data-design='neon'] .account-tile,
+:root[data-design='neon'] .instance-card,
+:root[data-design='neon'] .community {
+  border-radius: 8px;
+  border-top: 2px solid var(--accent-line);
+}
+
+:root[data-design='neon'] .field input,
+:root[data-design='neon'] .form input,
+:root[data-design='neon'] .text-input,
+:root[data-design='neon'] .field select,
+:root[data-design='neon'] .select-inline {
+  border-radius: 4px;
+}
+
+:root[data-design='neon'] .search {
+  border-radius: 4px;
+}
+
+:root[data-design='neon'] .segmented {
+  border-radius: 4px;
+  padding: 3px;
+}
+
+:root[data-design='neon'] .segment {
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+
+:root[data-design='neon'] .badge {
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+:root[data-design='neon'] .version-table {
+  border-radius: 8px;
+}
+
+:root[data-design='neon'] .modal {
+  border-radius: 10px;
+}
+
+:root[data-design='neon'] .icon-btn {
+  border-radius: 4px;
+}
+
+:root[data-design='neon'] .loading-xp {
+  border-radius: 3px;
+  background: rgba(3, 6, 18, 0.7);
+}
+
+:root[data-design='neon'] .loading-step-box {
+  border-radius: 1px;
+}

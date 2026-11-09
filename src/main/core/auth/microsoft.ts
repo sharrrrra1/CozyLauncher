@@ -299,7 +299,7 @@ export async function microsoftLogin(
       modal: Boolean(parent),
       show: false,
       autoHideMenuBar: true,
-      title: 'Вход Microsoft — Cozy Launcher',
+      title: 'Вход Microsoft — JorneyMC',
       backgroundColor: '#0b1512',
       webPreferences: {
         partition,

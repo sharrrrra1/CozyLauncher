@@ -1,4 +1,5 @@
 import { useId, type JSX } from 'react'
+import { BLOCK_MARK_SVG } from '@shared/block-mark'
 
 export interface StickerProps {
   className?: string
@@ -173,8 +174,13 @@ export function ShieldCheck({ className, size = 64 }: StickerProps): JSX.Element
 export function LogoMark({ className, size = 44 }: StickerProps): JSX.Element {
   return (
     <span className={`logo-mark ${className ?? ''}`} style={{ width: size, height: size }}>
-      <GrassBlock size={size} />
-      <span className="logo-spark" />
+      <svg
+        viewBox="0 0 64 64"
+        width={size}
+        height={size}
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{ __html: BLOCK_MARK_SVG }}
+      />
     </span>
   )
 }

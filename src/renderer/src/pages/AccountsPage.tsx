@@ -480,7 +480,7 @@ export function AccountsPage(): ReactNode {
       <p className="accounts-footnote">
         Профили хранятся локально в папке лаунчера. Удаление аккаунта не затрагивает миры,
         скриншоты и настройки версий.
-        {api.app.version ? ` Cozy Launcher ${api.app.version}.` : ''}
+        {api.app.version ? ` JorneyMC ${api.app.version}.` : ''}
       </p>
 
       <OfflineModal open={offlineOpen} onClose={() => setOfflineOpen(false)} />

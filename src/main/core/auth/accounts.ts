@@ -152,29 +152,64 @@ export async function getLaunchAuth(onProgress: Progress = () => undefined): Pro
 const skinCache = new Map<string, { at: number; data: string | null }>()
 const SKIN_TTL = 10 * 60 * 1000
 
-export async function getSkinDataUrl(id: string): Promise<string | null> {
-  const account = getStoredAccount(id)
-  if (!account?.skinUrl) return null
-  const cached = skinCache.get(account.skinUrl)
-  if (cached && Date.now() - cached.at < SKIN_TTL) return cached.data
+const SKIN_HOSTS = [
+  'minecraft.net',
+  'mojang.com',
+  'mc-heads.net',
+  'minotar.net',
+  'crafatar.com',
+  'visage.surgeplay.com'
+]
 
+function isTrustedSkinHost(hostname: string): boolean {
+  return SKIN_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`))
+}
+
+/**
+ * Candidate skin sources for an account, best first.
+ * Microsoft accounts use the official texture URL. Offline (or accounts
+ * without a texture) fall back to name-based providers so that a nickname
+ * that exists online still shows its real skin, otherwise the default one.
+ */
+function skinCandidates(account: StoredAccount): string[] {
+  const urls: string[] = []
+  if (account.skinUrl) urls.push(account.skinUrl)
+  const name = encodeURIComponent(account.name)
+  urls.push(`https://mc-heads.net/skin/${name}`)
+  urls.push(`https://minotar.net/skin/${name}`)
+  return urls
+}
+
+async function fetchSkin(url: string): Promise<string | null> {
   try {
-    const url = new URL(account.skinUrl)
-    if (!url.hostname.endsWith('minecraft.net') && !url.hostname.endsWith('mojang.com')) {
-      return null
-    }
-    const response = await fetch(url, {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:' || !isTrustedSkinHost(parsed.hostname)) return null
+    const response = await fetch(parsed, {
       headers: { 'User-Agent': 'CozyLauncher/1.0.0' },
       signal: AbortSignal.timeout(15000)
     })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    if (!response.ok) return null
     const buffer = Buffer.from(await response.arrayBuffer())
-    if (buffer.length > 2_000_000) throw new Error('Слишком большой файл скина')
-    const data = `data:image/png;base64,${buffer.toString('base64')}`
-    skinCache.set(account.skinUrl, { at: Date.now(), data })
-    return data
+    if (buffer.length < 64 || buffer.length > 2_000_000) return null
+    return `data:image/png;base64,${buffer.toString('base64')}`
   } catch {
-    skinCache.set(account.skinUrl, { at: Date.now(), data: null })
     return null
   }
+}
+
+export async function getSkinDataUrl(id: string): Promise<string | null> {
+  const account = getStoredAccount(id)
+  if (!account) return null
+
+  const cacheKey = account.skinUrl ?? `${account.type}:${account.name.toLowerCase()}`
+  const cached = skinCache.get(cacheKey)
+  if (cached && Date.now() - cached.at < SKIN_TTL) return cached.data
+
+  let data: string | null = null
+  for (const candidate of skinCandidates(account)) {
+    data = await fetchSkin(candidate)
+    if (data) break
+  }
+  skinCache.set(cacheKey, { at: Date.now(), data })
+  return data
 }

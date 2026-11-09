@@ -31,6 +31,8 @@ export interface VersionStatus {
 
 export type AccentName = 'emerald' | 'amber' | 'frost' | 'rose'
 
+export type DesignName = 'cozy' | 'neon' | 'aurora' | 'crt'
+
 export interface Settings {
   ramMb: number
   javaMode: 'auto' | 'custom'
@@ -42,8 +44,10 @@ export interface Settings {
   customResolution: boolean
   jvmArgs: string
   accent: AccentName
+  design: DesignName
   animations: boolean
   closeOnLaunch: boolean
+  discordRpc: boolean
   msClientId: string
   lastVersion: string
   lastAccountId: string
@@ -158,6 +162,25 @@ export interface AuthProgress {
 export interface CozyApi {
   system: {
     info(): Promise<SystemInfo>
+    specs(): Promise<SystemSpecs>
+    optimize(context?: OptimizationContext): Promise<OptimizationResult>
+  }
+  stats: {
+    get(): Promise<PlaytimeStats>
+  }
+  gallery: {
+    list(scope: GalleryScope): Promise<ScreenshotEntry[]>
+    thumb(scope: GalleryScope, file: string): Promise<ScreenshotImage>
+    full(scope: GalleryScope, file: string): Promise<ScreenshotImage>
+    copy(scope: GalleryScope, file: string): Promise<void>
+    openFolder(scope: GalleryScope): Promise<void>
+    remove(scope: GalleryScope, file: string): Promise<void>
+  }
+  discord: {
+    config(): Promise<DiscordPresenceConfig>
+    updateConfig(config: DiscordPresenceConfig): Promise<DiscordPresenceConfig>
+    setActivity(activity: any): Promise<void>
+    clearActivity(): Promise<void>
   }
   window: {
     minimize(): void
@@ -481,5 +504,88 @@ export interface CrashInfo {
   logPath?: string
   memoryMb: number
   modsCount: number
+}
+
+export interface PlaytimeStats {
+  /** Сколько миллисекунд намотано всего. */
+  totalMs: number
+  /** Время по сборкам: ключ — id сборки или 'vanilla'. */
+  perInstance: Record<string, number>
+  lastUpdated: number
+}
+
+export interface OptimizationContext {
+  /** Сколько модов в самой тяжёлой сборке — от этого зависит аппетит к памяти. */
+  modsCount?: number
+  currentRamMb?: number
+  currentJvmArgs?: string
+  currentWidth?: number
+  currentHeight?: number
+  currentFullscreen?: boolean
+}
+
+export interface OptimizationResult {
+  ramMb: number
+  jvmArgs: string[]
+  jvmArgsLine: string
+  width: number
+  height: number
+  fullscreen: boolean
+  /** Человеческие пояснения к каждой строке — их показываем в модалке. */
+  notes: string[]
+  /** true, если у игрока свои JVM-аргументы и мы их не трогаем. */
+  keepCustomJvm: boolean
+}
+
+export interface SystemSpecs {
+  /** Плоские поля — их просит автооптимизация, вложенные ниже остаются для UI «О лаунчере». */
+  cores: number
+  totalMemMb: number
+  freeMemMb: number
+  gpuVendor: string
+  gpuModel: string
+  screenW: number
+  screenH: number
+  os: {
+    platform: string
+    arch: string
+    release: string
+    totalMemMb: number
+    freeMemMb: number
+    cpus: { model: string; speed: number }[]
+  }
+  gpu: {
+    vendor?: string
+    renderer?: string
+    version?: string
+    vramMb?: number
+  }[]
+  screen: {
+    width: number
+    height: number
+    scaleFactor: number
+  }[]
+  appVersion: string
+  electron: string
+}
+
+export interface ScreenshotEntry {
+  file: string
+  mtimeMs: number
+  size: number
+}
+
+export interface ScreenshotImage {
+  dataUrl: string | null
+  /** Файл битый или слишком большой — показываем заглушку вместо падения. */
+  isBroken?: boolean
+}
+
+/** 'vanilla' — общая папка gameDir/screenshots, иначе id сборки. */
+export type GalleryScope = 'vanilla' | (string & {})
+
+export interface DiscordPresenceConfig {
+  enabled: boolean
+  clientId: string
 }
 

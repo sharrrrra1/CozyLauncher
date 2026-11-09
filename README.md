@@ -1,4 +1,4 @@
-# Cozy Launcher
+# JourneyMC
 
 Уютный лаунчер Minecraft для Windows: версии Mojang, изолированные сборки, каталог модов Modrinth, серверы с живым пингом, разбор крашей, импорт из других лаунчеров, офлайн-профили и вход через Microsoft. Тёмный интерфейс, собственные SVG-иллюстрации, четыре акцентные темы.
 
@@ -74,16 +74,16 @@
 
 Готовые сборки лежат в `release/`:
 
-- `CozyLauncher-Setup-1.2.0.exe` — установщик NSIS (ярлыки на рабочем столе и в меню «Пуск»).
-- `CozyLauncher-Portable-1.2.0.exe` — портативная версия, не требует установки.
+- `JourneyMC-Setup-1.2.0.exe` — установщик NSIS (ярлыки на рабочем столе и в меню «Пуск»).
+- `JourneyMC-Portable-1.2.0.exe` — портативная версия, не требует установки.
 
 Требования: Windows 10/11 x64, интернет для загрузки версий и входа в Microsoft. Java не обязательна — лаунчер найдёт системную или скачает нужный рантайм.
 
 Контрольные суммы SHA-256 (файл `release/SHA256SUMS.txt` создаётся командой `npm run sums`):
 
 ```text
-4e19ce58b66bda6607ccbff1e04eeca0b447c3421e7e2af03827114858b963ca  CozyLauncher-Portable-1.2.0.exe
-cd780b26344e1aa18c1d439d190a06b9c224f04fa7473f11bf71258268b9f76f  CozyLauncher-Setup-1.2.0.exe
+4e19ce58b66bda6607ccbff1e04eeca0b447c3421e7e2af03827114858b963ca  JourneyMC-Portable-1.2.0.exe
+cd780b26344e1aa18c1d439d190a06b9c224f04fa7473f11bf71258268b9f76f  JourneyMC-Setup-1.2.0.exe
 ```
 
 ## Сборки
@@ -141,9 +141,9 @@ cd780b26344e1aa18c1d439d190a06b9c224f04fa7473f11bf71258268b9f76f  CozyLauncher-S
 ```bash
 npm run dist
 # загрузите в GitHub Release с тегом v1.2.0:
-#   release/CozyLauncher-Setup-1.2.0.exe
-#   release/CozyLauncher-Setup-1.2.0.exe.blockmap
-#   release/CozyLauncher-Portable-1.2.0.exe
+#   release/JourneyMC-Setup-1.2.0.exe
+#   release/JourneyMC-Setup-1.2.0.exe.blockmap
+#   release/JourneyMC-Portable-1.2.0.exe
 #   release/latest.yml
 #   release/SHA256SUMS.txt
 ```
