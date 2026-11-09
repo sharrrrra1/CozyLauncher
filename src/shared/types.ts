@@ -237,6 +237,7 @@ export interface CozyApi {
   }
   updates: {
     check(): Promise<{ available: boolean; version?: string; notes?: string } | null>
+    getState(): Promise<UpdateState>
     download(): Promise<void>
     quitAndInstall(): void
     onStatus(cb: (status: UpdateStatus) => void): () => void
@@ -321,6 +322,12 @@ export interface UpdateProgress {
   bytesPerSecond: number
   total: number
   transferred: number
+}
+
+export interface UpdateState {
+  status: UpdateStatus
+  progress: UpdateProgress
+  info: { version?: string; notes?: string } | null
 }
 
 export interface ModSearchResult {

@@ -20,6 +20,8 @@ import type {
   LogLine,
   Settings,
   SystemInfo,
+  UpdateProgress,
+  UpdateStatus,
   VersionManifest,
   VersionStatus
 } from '@shared/types'
@@ -55,6 +57,12 @@ interface AppContextValue {
   crash: CrashInfo | null
   selectedVersion: string
   accent: AccentName
+  updateStatus: UpdateStatus
+  updateProgress: UpdateProgress | null
+  updateVersion: string | null
+  checkUpdates: () => Promise<void>
+  downloadUpdate: () => Promise<void>
+  installUpdate: () => void
   updateSettings: (patch: Partial<Settings>) => Promise<void>
   refreshManifest: () => Promise<void>
   refreshStatuses: (ids: string[]) => Promise<void>
@@ -101,6 +109,9 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
   const [authProgress, setAuthProgress] = useState<AuthProgress | null>(null)
   const [authBusy, setAuthBusy] = useState(false)
   const [crash, setCrash] = useState<CrashInfo | null>(null)
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('none')
+  const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null)
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null)
 
   const installPhases = useRef<Record<string, InstallPhase>>({})
   const toastTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
@@ -190,6 +201,28 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       alive = false
     }
   }, [refreshAccounts, refreshManifest, refreshStatuses, toast])
+
+  useEffect(() => {
+    // подписка живёт с момента старта renderer, а снапшот закрывает гонку:
+    // проверка обновлений может завершиться ещё до монтирования страниц
+    const offStatus = api.updates.onStatus(setUpdateStatus)
+    const offProgress = api.updates.onProgress(setUpdateProgress)
+    let alive = true
+    void api.updates
+      .getState()
+      .then((state) => {
+        if (!alive) return
+        setUpdateStatus(state.status)
+        setUpdateProgress(state.progress)
+        setUpdateVersion(state.info?.version ?? null)
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+      offStatus()
+      offProgress()
+    }
+  }, [])
 
   useEffect(() => {
     const offProgress = api.versions.onProgress((progress) => {
@@ -427,6 +460,26 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
 
   const clearLogs = useCallback(() => setLogs([]), [])
 
+  const checkUpdates = useCallback(async () => {
+    try {
+      await api.updates.check()
+    } catch (error) {
+      toast('error', 'Не удалось проверить обновления', formatError(error))
+    }
+  }, [toast])
+
+  const downloadUpdate = useCallback(async () => {
+    try {
+      await api.updates.download()
+    } catch (error) {
+      toast('error', 'Не удалось скачать обновление', formatError(error))
+    }
+  }, [toast])
+
+  const installUpdate = useCallback(() => {
+    api.updates.quitAndInstall()
+  }, [])
+
   const selectedVersion = useMemo(() => {
     if (!settings) return ''
     if (settings.lastVersion) return settings.lastVersion
@@ -458,6 +511,12 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       crash,
       selectedVersion,
       accent,
+      updateStatus,
+      updateProgress,
+      updateVersion,
+      checkUpdates,
+      downloadUpdate,
+      installUpdate,
       updateSettings,
       refreshManifest,
       refreshStatuses,
@@ -501,6 +560,12 @@ export function AppProvider({ children }: { children: ReactNode }): ReactNode {
       crash,
       selectedVersion,
       accent,
+      updateStatus,
+      updateProgress,
+      updateVersion,
+      checkUpdates,
+      downloadUpdate,
+      installUpdate,
       updateSettings,
       refreshManifest,
       refreshStatuses,

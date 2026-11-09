@@ -151,6 +151,7 @@ const api: CozyApi = {
   },
   updates: {
     check: () => ipcRenderer.invoke('updates:check'),
+    getState: () => ipcRenderer.invoke('updates:get-state'),
     download: () => ipcRenderer.invoke('updates:download'),
     quitAndInstall: () => ipcRenderer.invoke('updates:quit-and-install'),
     onStatus: (cb) => subscribe('updates:status', cb),

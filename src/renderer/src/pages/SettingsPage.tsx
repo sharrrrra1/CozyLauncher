@@ -87,7 +87,20 @@ function Row({
 }
 
 export function SettingsPage(): ReactNode {
-  const { settings, system, updateSettings, refreshAccounts, toast, launchState } = useApp()
+  const {
+    settings,
+    system,
+    updateSettings,
+    refreshAccounts,
+    toast,
+    launchState,
+    updateStatus,
+    updateProgress,
+    updateVersion,
+    checkUpdates,
+    downloadUpdate,
+    installUpdate
+  } = useApp()
   const [javaList, setJavaList] = useState<JavaInfo[] | null>(null)
   const [javaLoading, setJavaLoading] = useState(false)
   const [ramDraft, setRamDraft] = useState(settings?.ramMb ?? 2048)
@@ -891,6 +904,41 @@ export function SettingsPage(): ReactNode {
               <strong className="mono" title={settings.gameDir}>{settings.gameDir}</strong>
             </div>
           </div>
+          <Row
+            label="Обновления лаунчера"
+            hint={
+              updateStatus === 'checking'
+                ? 'Проверяем наличие новой версии…'
+                : updateStatus === 'available'
+                  ? `Доступна версия ${updateVersion ?? 'новая'} — скачается только с вашего согласия`
+                  : updateStatus === 'downloading'
+                    ? `Скачиваем обновление: ${updateProgress?.percent ?? 0}%`
+                    : updateStatus === 'downloaded'
+                      ? 'Обновление скачано и готово к установке'
+                      : updateStatus === 'error'
+                        ? 'Проверка не удалась — попробуйте ещё раз'
+                        : 'Автопроверка при запуске, не чаще раза в сутки'
+            }
+          >
+            {updateStatus === 'available' ? (
+              <Button variant="soft" className="btn-small" onClick={() => void downloadUpdate()}>
+                Скачать
+              </Button>
+            ) : null}
+            {updateStatus === 'downloaded' ? (
+              <Button variant="primary" className="btn-small" onClick={() => installUpdate()}>
+                Установить и перезапустить
+              </Button>
+            ) : null}
+            <Button
+              variant="ghost"
+              className="btn-small"
+              disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+              onClick={() => void checkUpdates()}
+            >
+              Проверить обновления
+            </Button>
+          </Row>
           <CommunityLinks compact />
           <div className="about-note">
             <Icon name="shield" size={15} />

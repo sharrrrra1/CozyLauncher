@@ -4,6 +4,7 @@ import http from 'node:http'
 import https from 'node:https'
 import path from 'node:path'
 import { getSettings } from './store'
+import { shouldWriteCheckMarker, type UpdateCheckResult } from '../../shared/update-check'
 
 export type UpdateStatus =
   | 'checking'
@@ -28,11 +29,26 @@ const progressListeners = new Set<(progress: UpdateProgress) => void>()
 
 let currentStatus: UpdateStatus = 'none'
 let currentProgress: UpdateProgress = { percent: 0, bytesPerSecond: 0, total: 0, transferred: 0 }
+let currentInfo: { version?: string; notes?: string } | null = null
 let downloadedPath: string | null = null
 let updaterWired = false
 
+function logUpdate(level: string, message: string): void {
+  try {
+    const dir = path.join(app.getPath('userData'), 'logs')
+    fs.mkdirSync(dir, { recursive: true })
+    fs.appendFileSync(
+      path.join(dir, 'update.log'),
+      `${new Date().toISOString()} [${level}] ${message}\n`
+    )
+  } catch {
+    // logging must never break the update flow
+  }
+}
+
 function emitStatus(status: UpdateStatus): void {
   currentStatus = status
+  logUpdate('info', `status: ${status}`)
   for (const cb of statusListeners) cb(status)
 }
 
@@ -69,6 +85,12 @@ function getUpdater(): any | null {
     // electron-builder публикует latest.yml; канал stable искал бы stable.yml
     autoUpdater.channel = 'latest'
     autoUpdater.allowPrerelease = false
+    autoUpdater.logger = {
+      info: (message: unknown) => logUpdate('info', String(message)),
+      debug: (message: unknown) => logUpdate('debug', String(message)),
+      warn: (message: unknown) => logUpdate('warn', String(message)),
+      error: (message: unknown) => logUpdate('error', String(message))
+    }
     if (!updaterWired) {
       updaterWired = true
       autoUpdater.on('checking-for-update', () => emitStatus('checking'))
@@ -83,7 +105,10 @@ function getUpdater(): any | null {
         })
       })
       autoUpdater.on('update-downloaded', () => emitStatus('downloaded'))
-      autoUpdater.on('error', () => emitStatus('error'))
+      autoUpdater.on('error', (error: unknown) => {
+        logUpdate('error', `updater error: ${String(error)}`)
+        emitStatus('error')
+      })
     }
     cachedUpdater = autoUpdater
     return autoUpdater
@@ -130,9 +155,9 @@ function jsonGet(url: string, query?: Record<string, string | number>): Promise<
   })
 }
 
-async function checkViaHttp(): Promise<{ available: boolean; version?: string; notes?: string }> {
+async function checkViaHttp(): Promise<UpdateCheckResult> {
   const serverUrl = updateServerUrl()
-  if (!serverUrl) return { available: false }
+  if (!serverUrl) return { available: false, ok: false }
   try {
     const body = await jsonGet(`${serverUrl}/api/update/check`, {
       app: 'cozylauncher',
@@ -140,14 +165,16 @@ async function checkViaHttp(): Promise<{ available: boolean; version?: string; n
       channel: UPDATE_CHANNEL
     })
     if (body?.available && body?.version && body.version !== app.getVersion()) {
+      currentInfo = { version: body.version, notes: body.notes }
       emitStatus('available')
-      return { available: true, version: body.version, notes: body.notes }
+      return { available: true, version: body.version, notes: body.notes, ok: true }
     }
     emitStatus('none')
-    return { available: false }
-  } catch {
-    emitStatus('none')
-    return { available: false }
+    return { available: false, ok: true }
+  } catch (error) {
+    logUpdate('error', `http check failed: ${String(error)}`)
+    emitStatus('error')
+    return { available: false, ok: false }
   }
 }
 
@@ -155,11 +182,7 @@ async function checkViaHttp(): Promise<{ available: boolean; version?: string; n
 /*  Check                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function checkForUpdates(): Promise<{
-  available: boolean
-  version?: string
-  notes?: string
-}> {
+export async function checkForUpdates(): Promise<UpdateCheckResult> {
   emitStatus('checking')
   const updater = getUpdater()
   if (updater) {
@@ -167,17 +190,20 @@ export async function checkForUpdates(): Promise<{
       const result = await updater.checkForUpdates()
       const version = result?.updateInfo?.version
       if (version && version !== app.getVersion()) {
+        const notes =
+          typeof result.updateInfo.releaseNotes === 'string' ? result.updateInfo.releaseNotes : undefined
+        currentInfo = { version, notes }
         emitStatus('available')
-        return {
-          available: true,
-          version,
-          notes: typeof result.updateInfo.releaseNotes === 'string' ? result.updateInfo.releaseNotes : undefined
-        }
+        return { available: true, version, notes, ok: true }
       }
       emitStatus('none')
-      return { available: false }
-    } catch {
-      emitStatus('error')
+      return { available: false, ok: true }
+    } catch (error) {
+      logUpdate('error', `check failed: ${String(error)}`)
+      if (!updateServerUrl()) {
+        emitStatus('error')
+        return { available: false, ok: false }
+      }
     }
   }
   return checkViaHttp()
@@ -270,7 +296,8 @@ function downloadFile(
 export function quitAndInstall(): void {
   const updater = getUpdater()
   if (updater?.downloadedUpdateHelper) {
-    setImmediate(() => updater.quitAndInstall(false, true))
+    // тихая установка: NSIS /S без окна установщика, затем автозапуск
+    setImmediate(() => updater.quitAndInstall(true, true))
     return
   }
   if (!downloadedPath || !fs.existsSync(downloadedPath)) {
@@ -295,10 +322,16 @@ export async function maybeAutoCheck(getWindow: () => BrowserWindow | null): Pro
   } catch {
     // first run
   }
-  fs.mkdirSync(path.dirname(checkMarker()), { recursive: true })
-  fs.writeFileSync(checkMarker(), JSON.stringify({ at: Date.now() }), 'utf8')
 
-  const result = await checkForUpdates().catch(() => null)
+  const result = await checkForUpdates().catch((error) => {
+    logUpdate('error', `auto check failed: ${String(error)}`)
+    return null
+  })
+  // маркер ставим только после успешной проверки: ошибка не сжигает сутки попыток
+  if (shouldWriteCheckMarker(result)) {
+    fs.mkdirSync(path.dirname(checkMarker()), { recursive: true })
+    fs.writeFileSync(checkMarker(), JSON.stringify({ at: Date.now() }), 'utf8')
+  }
   if (result?.available) {
     const window = getWindow()
     window?.webContents.send('updates:status', 'available')
@@ -312,6 +345,11 @@ export async function maybeAutoCheck(getWindow: () => BrowserWindow | null): Pro
 
 export function registerUpdateIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('updates:check', async () => checkForUpdates())
+  ipcMain.handle('updates:get-state', () => ({
+    status: currentStatus,
+    progress: currentProgress,
+    info: currentInfo
+  }))
   ipcMain.handle('updates:download', async () => {
     await downloadUpdate()
   })

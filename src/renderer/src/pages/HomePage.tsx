@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { ServerConfig, UpdateProgress, UpdateStatus, VersionMeta } from '@shared/types'
+import type { ServerConfig, VersionMeta } from '@shared/types'
 import { useApp } from '../state/AppContext'
 import { api, formatBytes, formatDate, formatSpeed, versionTypeLabel } from '../lib/api'
 import { Button, ProgressBar, Spinner } from '../components/ui'
@@ -34,13 +34,16 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
     cancelInstall,
     launch,
     launchState,
-    toast
+    toast,
+    updateStatus,
+    updateProgress,
+    checkUpdates,
+    downloadUpdate,
+    installUpdate
   } = useApp()
 
   const [meta, setMeta] = useState<VersionMeta | null>(null)
   const [serverConfig, setServerConfig] = useState<ServerConfig | null>(null)
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('none')
-  const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null)
   const [serverBusy, setServerBusy] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
 
@@ -52,12 +55,8 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
         if (alive) setServerConfig(config)
       })
       .catch(() => undefined)
-    const offStatus = api.updates.onStatus((status) => setUpdateStatus(status))
-    const offProgress = api.updates.onProgress((progress) => setUpdateProgress(progress))
     return () => {
       alive = false
-      offStatus()
-      offProgress()
     }
   }, [])
 
@@ -408,7 +407,7 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
             <Button
               variant="soft"
               className="btn-small"
-              onClick={() => void api.updates.download()}
+              onClick={() => void downloadUpdate()}
             >
               Скачать обновление
             </Button>
@@ -417,11 +416,26 @@ export function HomePage({ onNavigate }: { onNavigate: (page: PageId) => void })
             <Button
               variant="primary"
               className="btn-small"
-              onClick={() => api.updates.quitAndInstall()}
+              onClick={() => installUpdate()}
             >
               Перезапустить и обновить
             </Button>
           ) : null}
+        </section>
+      ) : null}
+
+      {updateStatus === 'error' ? (
+        <section className="update-banner">
+          <span className="update-banner-icon">
+            <Icon name="info" size={20} />
+          </span>
+          <div>
+            <strong>Не удалось проверить обновления</strong>
+            <p>Проверьте соединение с интернетом и попробуйте ещё раз.</p>
+          </div>
+          <Button variant="soft" className="btn-small" onClick={() => void checkUpdates()}>
+            Повторить
+          </Button>
         </section>
       ) : null}
 
